@@ -712,6 +712,7 @@ contains
    call contio(nendf,0,0,c(1),nb,nw)
    n6=n2h
    call contio(nendf,0,0,c(1),nb,nw)
+   nx=0
    if (n1h.ne.0) then
       iverf=4
       nx=n6
@@ -878,14 +879,14 @@ contains
          ! correction.
          write(nsyso,'(/,&
            &'' fission energy components''/)')
-         c458(1:18)=scr(7:24)
+         c458(1:18)=scr(7:24)    ! scr is a list record
          if (lfc.eq.0) then      ! thermal point or polynomial
             qdel=c458(5)+c458(9)+c458(11) ! delayed fission Q at 0 eV
             if (nply.ge.1) then
                c458(19:36)=scr(25:42)
                if (nply.gt.1) then
                   do n=2,nply
-                     if (nmod.ne.7.or.lrel.ne.1) then
+                     if (nmod.ne.7.or.lrel.ne.1) then ! endf/b-vii.1 correction
                         efix=1
                      else
                         efix=mevev**(n-1)
@@ -938,17 +939,17 @@ contains
                   anp(1:nl)=scr(1:nl)
                else if (ifc.eq.3) then ! END is tabulated
                   ifc3=1
-                  qdel=qdel+scr(7)
+                  qdel=qdel+scr(6+2*n1h+2)
                else if (ifc.eq.4) then ! EGP is tabulated
                   ifc4=1
                   allocate(agp(1:nl))
                   agp(1:nl)=scr(1:nl)
                else if (ifc.eq.5) then ! EGD is tabulated
                   ifc5=1
-                  qdel=qdel+scr(7)
+                  qdel=qdel+scr(6+2*n1h+2)
                else if (ifc.eq.6) then ! EB is tabulated
                   ifc6=1
-                  qdel=qdel+scr(7)
+                  qdel=qdel+scr(6+2*n1h+2)
                endif
             enddo
             if (ifc3.eq.0) qdel=qdel+c458(5)
@@ -1239,7 +1240,6 @@ contains
    real(kr),parameter::step4=5.e6_kr
    real(kr),parameter::up=1.1e0_kr
    real(kr),parameter::zero=0
-   real(kr),parameter::qsmall=1e-6_kr
    real(kr),parameter::tol=1.e-5_kr
 
    !--allocate storage
@@ -1281,6 +1281,8 @@ contains
    jrec=0
    last6=0
    new6=0
+   qsave=0
+   pnue=0
 
    !--loop over non-redundant mt-s in file 3.
   105 continue
@@ -3358,6 +3360,7 @@ contains
    real(kr)::photon_count
 
    !--initialize.
+   nbt=0
    if (law.gt.0.and.law.ne.1.and.law.ne.5)&
      call error('tabbar','coded for lf=1 and lf=5 only.',' ')
    if (law.ge.0) then
@@ -4642,7 +4645,6 @@ contains
    real(kr),parameter::up=1.00001e0_kr
    real(kr),parameter::dn=.99999e0_kr
    real(kr),parameter::off=.999995e0_kr
-   real(kr),parameter::step=0.05e0_kr
    real(kr),parameter::emax=1.e10_kr
    real(kr),parameter::small=1.e-10_kr
    real(kr),parameter::zero=0
@@ -4849,6 +4851,7 @@ contains
    !--select desired discrete line
    inow=7+(i-1)*ncnow
    epnext=cnow(inow)
+   t=0.
 
    !--legendre coefficients
    if (lang.eq.1) then
@@ -5288,7 +5291,6 @@ contains
    character(60)::strng
    real(kr)::flo(65),fhi(65)
    real(kr),parameter::small=1.e-10_kr
-   real(kr),parameter::emax=1.e10_kr
    real(kr),parameter::zero=0
    save iso,iraw,ir,nne,ne,inn
    save elo,ehi,nlo,nhi,flo,fhi,ltt,ltt3,lttn
@@ -6182,6 +6184,7 @@ contains
    e=0
    dame=df(e,z,awr,z,awr)
    mgam=2
+   hk=0
   100 continue
    call contio(nscr,0,0,scr,nb,nw)
    if (mfh.eq.12) mgam=1
@@ -6949,6 +6952,7 @@ contains
    endif
 
    !--construct tab1 records for the kerma factors
+   n=0
    nscr=15
    if (nout.lt.0) nscr=-nscr
    call openz(nscr,1)
