@@ -354,7 +354,6 @@ contains
    real(kr),dimension(:,:),allocatable::flux,sig
    character(4)::mtname(15)
    character(60)::strng
-   character(66)::text
    character(4)::tz(17)
    real(kr)::z(17)
    equivalence(tz(1),z(1))
@@ -647,6 +646,7 @@ contains
          lfs=0
          isom=0
          izam=-1
+         izar=-1
       else
          itmp=mfd/10000000
          itmp=(mfd-10000000*itmp)/10
@@ -662,8 +662,9 @@ contains
    elseif (iauto.eq.1.and.mfd.ge.10000000) then
       if (mfd.eq.40000000) then ! fission special case for mf10
          izam=-1
+         izar=-1
       else
-         izar=(mfd-((mfd/1000000)*1000000))/10
+         izar=(mfd-((mfd/10000000)*10000000))/10
          if (lfs.lt.10) then
             izam=mod(mfd,10000000)+lfs
          else
@@ -1441,14 +1442,14 @@ contains
       izaa=izam/10
       imm=isom
       if (imm.eq.0) then
-         write(azam,'(i5)') izaa
-         dummy='('//proj//','//reac//')-'//azam(1:5)//'-production.'
+         write(azam,'(i6)') izaa
+         dummy='('//proj//','//reac//')-'//azam(1:6)//'-production.'
       else if (imm.lt.10) then
-         write(azam,'(i5,''m'',i1)') izaa,imm
+         write(azam,'(i6,''m'',i1)') izaa,imm
          dummy='('//proj//','//reac//')-'//azam//'-production.'
       else
          izaa=izaa/10
-         write(azam,'(i5,''m'',i2)') izaa,imm
+         write(azam,'(i6,''m'',i2)') izaa,imm
          dummy='('//proj//','//reac//')-'//azam//'-production.'
       endif
    else
@@ -4363,6 +4364,105 @@ contains
          egn(ig)=eg23(ig)
       enddo
 
+   !--shem cea 281-group structure
+   else if (ign.eq.24) then
+      ngn=281
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,282
+         egn(ig)=eg24(ig)
+      enddo
+
+   !--shem epm 295-group structure
+   else if (ign.eq.25) then
+      ngn=295
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,296
+         egn(ig)=eg25(ig)
+      enddo
+
+   !--shem cea/epm 361-group structure
+   else if (ign.eq.26) then
+      ngn=361
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,362
+         egn(ig)=eg26(ig)
+      enddo
+
+   !--shem epm 315-group structure
+   else if (ign.eq.27) then
+      ngn=315
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,316
+         egn(ig)=eg27(ig)
+      enddo
+
+   !--rahab aecl 89-group structure
+   else if (ign.eq.28) then
+      ngn=89
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,90
+         egn(ig)=eg28(ig)
+      enddo
+
+   !--ccfe  660-group structure
+   else if (ign.eq.29) then
+      ngn=660
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,ngp
+         egn(ig)=eg29(ig)
+      enddo
+
+   !--ukaea  1025-group structure
+   else if (ign.eq.30) then
+      ngn=1025
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,ngp
+         egn(ig)=eg30(ig)
+      enddo
+
+   !--ukaea  1067-group structure
+   else if (ign.eq.31) then
+      ngn=1067
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,ngp
+         egn(ig)=eg31(ig)
+      enddo
+
+   !--ukaea  1102-group structure
+   else if (ign.eq.32) then
+      ngn=1102
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,ngp
+         egn(ig)=eg32(ig)
+      enddo
+
+   !--ukaea  142-group structure
+   else if (ign.eq.33) then
+      ngn=142
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,ngp
+         egn(ig)=eg33(ig)
+      enddo
+
+   !--lanl 618 group structure
+   else if (ign.eq.34) then
+      ngn=618
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,ngp
+         egn(ig)=eg618(ig)
+      enddo
+
    !--illegal ign
    else
       call error('gengpn','illegal group structure.',' ')
@@ -4672,7 +4772,7 @@ contains
    use util   ! provides error
    ! internals
    integer::iwtt,i,nr,np,ntmp,iw
-   real(kr)::ehi,eb,tb,ec,tc,ab,ac
+   real(kr)::eb,tb,ec,tc,ab,ac
    real(kr),dimension(:),allocatable::tmp
    real(kr),dimension(92),parameter::w1=(/&
      0.e0_kr,0.e0_kr,0.e0_kr,0.e0_kr,1.e0_kr,88.e0_kr,88.e0_kr,&
@@ -4729,8 +4829,9 @@ contains
      .251963e-06_kr,.141900e+08_kr,.239298e-06_kr,.143900e+08_kr,&
      .176226e-06_kr,.145900e+08_kr,.992422e-07_kr,.155500e+08_kr,&
      .150737e-08_kr,.200000e+08_kr,.725000e-10_kr/)
-   real(kr),dimension(102),parameter::w9=(/&
-     0.e0_kr,0.e0_kr,0.e0_kr,0.e0_kr,1e0_kr,47e0_kr,47e0_kr,5e0_kr,&
+   real(kr),dimension(106),parameter::w9=(/&
+     0.e0_kr,0.e0_kr,0.e0_kr,0.e0_kr,1e0_kr,49e0_kr,49e0_kr,5e0_kr,&
+      1.00e-5_kr,2.2391e5_kr,&
       1.39e-4_kr,3.019e6_kr,5.e-4_kr,1.07e7_kr,1.e-3_kr,2.098e7_kr,&
       5.e-3_kr,8.939e7_kr,1.e-2_kr,1.4638e8_kr,2.5e-2_kr,2.008e8_kr,&
       4.e-2_kr,1.7635e8_kr,5.e-2_kr,1.478e8_kr,1.e-1_kr,4.e7_kr,&
@@ -4746,7 +4847,8 @@ contains
       1.2e7_kr,7.6e-3_kr,1.3e7_kr,1.23e-2_kr,1.35e7_kr,2.64e-2_kr,&
       1.4e7_kr,1.14e-1_kr,1.41e7_kr,1.14e-1_kr,1.42e7_kr,1.01e-1_kr,&
       1.43e7_kr,6.5e-2_kr,1.46e7_kr,1.49e-2_kr,1.5e7_kr,4.e-3_kr,&
-      1.6e7_kr,1.54e-3_kr,1.7e7_kr,0.85e-3_kr/)
+      1.6e7_kr,1.54e-3_kr,1.7e7_kr,0.85e-3_kr,&
+      2.0e7_kr,1.7279e-4_kr/)
    real(kr),parameter::small=1.e-10_kr
    real(kr),parameter::zero=0.e0_kr
    real(kr),parameter::onep5=1.5e0_kr
@@ -4873,9 +4975,9 @@ contains
       if (iwtt.gt.9) then
          write(nsyso,'(22x,''temperature dependent'')')
       endif
-      iw=102
+      iw=106
       allocate(wght(iw))
-      do i=1,102
+      do i=1,106
          wght(i)=w9(i)
       enddo
 
@@ -6309,7 +6411,7 @@ contains
    integer::idis,mat,mf,mt,lfs,itape,i,nr,nc
    real(kr)::e,enext,yld,term
    ! internals
-   integer::mft,nb,nw,nk,ik,lnu,iza,lnd,izn,lfn,ip,ir,na,loc
+   integer::mft,nb,nw,nk,ik,lnu,iza,lnd,izn,lfn,ip,ir,na,loc,ll
    integer::ntmp
    real(kr),dimension(:),allocatable::tmp
    real(kr),parameter::emax=1.e10_kr
@@ -6338,12 +6440,23 @@ contains
    if (mt.eq.455) go to 110
    lnd=0
    if (lnu.ne.1) go to 130
-   call listio(itape,0,0,tmp(loc),nb,nw)
+   ll=loc
+   call listio(itape,0,0,tmp(ll),nb,nw)
    na=nw
+   do while (nb.ne.0)
+      ll=ll+nw
+      call moreio(itape,0,0,tmp(ll),nb,nw)
+      na=na+nw
+   enddo
    enext=emax
    go to 190
   110 continue
-   call listio(itape,0,0,tmp(loc),nb,nw)
+   ll=loc
+   call listio(itape,0,0,tmp(ll),nb,nw)
+   do while (nb.ne.0)
+      ll=ll+nw
+      call moreio(itape,0,0,tmp(ll),nb,nw)
+   enddo
    lnd=nint(tmp(loc+4))
    if (lnd.gt.8) call error('getyld','illegal lnd.',' ')
    do i=1,lnd
@@ -6360,6 +6473,7 @@ contains
    enddo
    if (nk.eq.0) go to 180
    izn=0
+   lfn=0
    if (mft.eq.9.or.mft.eq.10) izn=nint(tmp(3))
    if (mft.eq.6) izn=nint(tmp(1))
    if (mft.eq.9.or.mft.eq.10) lfn=nint(tmp(4))
@@ -7311,17 +7425,16 @@ contains
    integer::llo,lhi,iz,l,iy,max,nc,lf
    real(kr)::zad,elo,ehi,apsx,enow,eihi,ep,epnext,en
    real(kr)::pspmax,yldd,el,eh,e0,g0,e1,e2,test,pe,disc102
-   real(kr)::val,fx,ex,cx,cxx,sum,rn,dx
+   real(kr)::val,fx,ex,cx,cxx,rn,dx
    integer(kr)::nx,ncyc,n,ix
    integer,parameter::mxlg=65
    real(kr)::term(mxlg),terml(mxlg)
-   character(60)::strng
    integer,parameter::maxss=500
    integer,parameter::nssm=9
    integer,dimension(nssm)::iyss,izss,jjss
    integer,dimension(maxss)::jloss
    real(kr),dimension(:),allocatable::tmp
-   integer,parameter::ncmax=350
+   integer,parameter::ncmax=1000
    real(kr),parameter::emax=1.e10_kr
    real(kr),parameter::small=1.e-10_kr
    real(kr),parameter::shade=1.1999e0_kr
@@ -7331,7 +7444,7 @@ contains
    real(kr),parameter::eps=0.02e0_kr
    real(kr),parameter::zero=0
    real(kr),parameter::alight=5
-   integer,parameter::ntmp=990000
+   integer,parameter::ntmp=2000000
    save nne,ne,int
    save jlo,elo,jhi,ehi,terml
    save pspmax,langn,lepn,disc102
@@ -8304,7 +8417,7 @@ contains
    ! internals
    integer::nl,inow,lnow,mnow,ncnow,na,ndnow,npnow,idone,illdef
    integer::l,iza2,int,ii,jj,lll,ia
-   real(kr)::efirst,enow,t,eplast,s,r,aa,ss,bb,sa,tii,tjj,tt
+   real(kr)::efirst,enow,t,eplast,s,r,aa,tii,tjj,tt
    real(kr)::x1,x2,y1,y2
    integer,parameter::mxlg=65
    real(kr)::p(mxlg)
@@ -8314,8 +8427,6 @@ contains
    real(kr),parameter::emax=1.e10_kr
    real(kr),parameter::step=0.05e0_kr
    real(kr),parameter::small=1.e-10_kr
-   real(kr),parameter::tomev=1.e-6_kr
-   real(kr),parameter::half=0.5e0_kr
    real(kr),parameter::zero=0
    save enow,efirst,nl,inow,lnow,mnow,ncnow,na,illdef
 
@@ -8503,11 +8614,9 @@ contains
    ! internals
    integer::nl,inow,lnow,mnow,ncnow,na,ndnow,npnow,l
    integer::iza2,int,ia
-   real(kr)::enow,t,s,r,ep,aa,ss,bb,sa,tt
+   real(kr)::enow,t,s,r,aa
    integer,parameter::mxlg=65
    real(kr)::p(mxlg)
-   real(kr),parameter::tomev=1.e-6_kr
-   real(kr),parameter::half=0.5e0_kr
    real(kr),parameter::zero=0.e0_kr
    save nl,inow,lnow,mnow,ncnow,na,enow
 
@@ -8925,6 +9034,8 @@ contains
 
    !--normal entry
    !--law 1.  find energy range.
+   f1=0
+   f2=0
    if (int.lt.11.or.int.gt.15) then
       idone=0
       do while (idone.eq.0)
@@ -9261,6 +9372,7 @@ contains
    aa=(whi+wlo)/2
    b=(whi-wlo)/2
    nqp=int(npo*2*b)
+   wqp=0
    if (nqp.gt.npo) nqp=npo
    if (nqp.le.8) nqp=4
    if (nqp.gt.8.and.nqp.le.12) nqp=8
@@ -9457,12 +9569,12 @@ contains
    real(kr)::e,enext,fle(*)
    ! internals
    integer::iso,lidp,ltt,iraw,ir,nne,ne,int,nlo,nhi,ltt3,lttn
-   integer::nb,nwc,lvt,i,nlmax,il
+   integer::nb,nwc,lvt,i,nlmax,il,ll
    real(kr)::elo,ehi
    character(60)::strng
    integer,parameter::mxlg=65
    real(kr)::flo(mxlg),fhi(mxlg)
-   integer,parameter::ncmax=350
+   integer,parameter::ncmax=1000
    real(kr)::fls(ncmax)
    real(kr),parameter::emax=1.e10_kr
    real(kr),parameter::small=1.e-10_kr
@@ -9520,14 +9632,24 @@ contains
       ! read in raw data at first two incident energies.
       ! retrieve or compute legendre coefficients.
       iraw=1+nwc
-      if (ltt.eq.1) call listio(nin,0,0,fls(iraw),nb,nwc)
-      if (ltt.eq.2) call tab1io(nin,0,0,fls(iraw),nb,nwc)
+      ll=iraw
+      if (ltt.eq.1) call listio(nin,0,0,fls(ll),nb,nwc)
+      if (ltt.eq.2) call tab1io(nin,0,0,fls(ll),nb,nwc)
+      do while (nb.ne.0)
+         ll=ll+nwc
+         call moreio(nin,0,0,fls(ll),nb,nwc)
+      enddo
       elo=fls(iraw+1)
       nlo=nle
       if (lidp.ge.0) fls(iraw+3)=lidp
       call getco(flo,nlo,lcd,fls(iraw),lct,ltt,idis)
-      if (ltt.eq.1) call listio(nin,0,0,fls(iraw),nb,nwc)
-      if (ltt.eq.2) call tab1io(nin,0,0,fls(iraw),nb,nwc)
+      ll=iraw
+      if (ltt.eq.1) call listio(nin,0,0,fls(ll),nb,nwc)
+      if (ltt.eq.2) call tab1io(nin,0,0,fls(ll),nb,nwc)
+      do while (nb.ne.0)
+         ll=ll+nwc
+         call moreio(nin,0,0,fls(ll),nb,nwc)
+      enddo
       ehi=fls(iraw+1)
       nhi=nle
       if (lidp.ge.0) fls(iraw+3)=lidp
@@ -9572,8 +9694,13 @@ contains
    else if (nne.eq.ne) then
       call error('getfle','desired energy above highest given.',' ')
    endif
-   if (ltt.eq.1) call listio(nin,0,0,fls(iraw),nb,nwc)
-   if (ltt.eq.2) call tab1io(nin,0,0,fls(iraw),nb,nwc)
+   ll=iraw
+   if (ltt.eq.1) call listio(nin,0,0,fls(ll),nb,nwc)
+   if (ltt.eq.2) call tab1io(nin,0,0,fls(ll),nb,nwc)
+   do while (nb.ne.0)
+      ll=ll+nwc
+      call moreio(nin,0,0,fls(ll),nb,nwc)
+   enddo
    ehi=fls(iraw+1)
    nhi=nle
    if (lidp.ge.0) fls(iraw+3)=lidp
@@ -9669,6 +9796,9 @@ contains
       call tab1io(nin,0,0,p,nb,nw)
       itt=-l1h
       law=l2h
+      do while (nb.ne.0)
+         call moreio(nin,0,0,p,nb,nw)
+      enddo
 
       !--incoherent elastic or inelastic with E-E'-mu ordering
       if (law.eq.1) then
@@ -10687,7 +10817,7 @@ contains
    integer::mt0,mt0old,nb,nw,jzar,lg,n,kk,k,kp1,l,lm1,mtl,no455
    integer::nnu,lnu,mf,mt,l1,l2,n1,n2,nk,jzap,ne,ltp,nm
    integer::m1,m2,mtnow,mttst,nn
-   integer::ltt,lcd,nl
+   integer::ltt,lcd,nl,ll
    real(kr)::g,ei,eja,ejb,e1,enext,p,za2,za,ysum,yy,tsave,w,elow,etop,enxt,x
    character(60)::strng
    integer::ngam(440)
@@ -10885,13 +11015,15 @@ contains
       if (irr26.ne.1) then
          if (mth.le.iabs(mf4r(6,irr26-1))+1) itest=1
       endif
-      if (itest.eq.1) then
-         if (mf4r(6,irr26-1).lt.0) irr26=irr26-1
-         mf4r(6,irr26)=-mth
-         irr26=irr26+1
-      else
-         mf4r(6,irr26)=mth
-         irr26=irr26+1
+      if (mth.ne.18) then ! exclude fission for residual production
+         if (itest.eq.1) then
+            if (mf4r(6,irr26-1).lt.0) irr26=irr26-1
+            mf4r(6,irr26)=-mth
+            irr26=irr26+1
+         else
+            mf4r(6,irr26)=mth
+            irr26=irr26+1
+         endif
       endif
    endif
    go to 119
@@ -11004,7 +11136,12 @@ contains
    lg=l2h
    g=1
    l2flg=1
-   call listio(nin,0,0,scr,nb,nw)
+   ll=1
+   call listio(nin,0,0,scr(ll),nb,nw)
+   do while (nb.ne.0)
+      ll=ll+nw
+      call moreio(nin,0,0,fls(ll),nb,nw)
+   enddo
 
    !--make sure mt0 is correct for this range of mt's.
    if (mth.ge.51.and.mth.le.90.and.mt0.ne.49) mt0=49
@@ -11320,10 +11457,20 @@ contains
       spi=c1h
       ne=n2h
       do ie=1,ne
-         call listio(nin,0,0,scr,nb,nw)
+         ll=1
+         call listio(nin,0,0,scr(ll),nb,nw)
          ltp=l1h
+         do while (nb.ne.0)
+            ll=ll+nw
+            call moreio(nin,0,0,scr(ll),nb,nw)
+         enddo
          if (ltp.le.2) then
-            call listio(0,nout,nscr,scr,nb,nw)
+            ll=1
+            call listio(0,nout,nscr,scr(ll),nb,nw)
+            do while (nb.ne.0)
+               ll=ll+nw
+               call moreio(0,nout,nscr,scr(ll),nb,nw)
+            enddo
          else
             e1=c2h
             call getsig(e1,enext,idis,sig,1,1)
@@ -11343,7 +11490,12 @@ contains
             do il=1,nl
                scr(6+il)=fl(il)
             enddo
-            call listio(0,nout,nscr,scr,nb,nw)
+            ll=1
+            call listio(0,nout,nscr,scr(ll),nb,nw)
+            do while (nb.ne.0)
+               ll=ll+nw
+               call moreio(0,nout,nscr,scr(ll),nb,nw)
+            enddo
          endif
       enddo
       izap=-izap
@@ -11446,6 +11598,7 @@ contains
    go to 790
   755 continue
    if (imf26.eq.1) go to 756
+   if (mth.eq.18) go to 790 ! skip fission in a>4 production
    if (mth.eq.iabs(mf6p(6,imf26-1))) go to 790
    if (mth.gt.iabs(mf6p(6,imf26-1))+1) go to 756
    if (mf6p(6,imf26-1).lt.0) imf26=imf26-1
@@ -11464,7 +11617,12 @@ contains
       ik=0
       do while (ik.lt.nk)
          ik=ik+1
-         call listio(nin,0,0,scr,nb,nw)
+         ll=1
+         call listio(nin,0,0,scr(ll),nb,nw)
+         do while (nb.ne.0)
+            ll=ll+nw
+            call moreio(nin,0,0,scr(ll),nb,nw)
+         enddo
          izan=nint(c1h)
          imf=l1h
          iis=l2h
@@ -11585,6 +11743,7 @@ contains
    save nktot,nupm,loc
 
    !--initialize
+   ethi=0
    if (ed.eq.zero) then
       ier=1
       ntmp=250000
@@ -12020,7 +12179,7 @@ contains
    ! internals
    integer::new,nr,np,ip2,ir2,i,idisc,lf,loct,locg,locb
    real(kr)::rp4,epl,eph,u,de,xone,xtwo,theta,xc,r1,r2,temp1
-   real(kr)::xlo,xhi,rc,r4,expa,bot,rl,rh,r3,expb,expc,b,en
+   real(kr)::xlo,xhi,rc,r4,bot,rl,rh,r3,b,en
    real(kr)::top,ca,ef,alpha,sa,sb,aa,bb,ab,fact,ap,bp,ans
    real(kr)::h(2)
    real(kr),parameter::xmin=1.e-3_kr
@@ -12037,6 +12196,7 @@ contains
    epl=ep1
    eph=ep2
    new=0
+   ans=0
    if (ep1.lt.etest) new=1
 
    ! check limit on integration.
