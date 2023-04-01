@@ -30,7 +30,7 @@ module aceth
 contains
 
    subroutine acesix(nin,nace,ndir,matd,tempd,tname,suff,&
-     hk,izn,awn,iza01,iza02,iza03,&
+     hk,izn,awn,&
      mti,nbin,mte,ielas,nmix,emax,iwt,iprint,mcnpx)
    !-------------------------------------------------------------------
    ! Convert thermal matrices in njoy MF6 format to various ACE
@@ -535,7 +535,7 @@ contains
   290 continue
 
    !--write ace format thermal tape
-   call thrlod(nout,matd,tempd,tname,suff,izn,iza01,iza02,iza03,&
+   call thrlod(nout,matd,tempd,tname,suff,izn,&
      nbin,nang,nmix,iwt,mcnpx)
    if (iprint.gt.0) call thrprt(hk)
    itype=1
@@ -552,7 +552,8 @@ contains
    !-------------------------------------------------------------------
    ! Print and or edit an ACE thermal file.
    !-------------------------------------------------------------------
-   use util ! provides closz
+   use util  ! provides closz
+   use acecm ! provides newsuff
    ! externals
    integer::itype,nin,nout,ndir,iprint,nplot,mcnpx,nxtra
    real(kr)::suff
@@ -560,13 +561,11 @@ contains
    integer::izn(16)
    real(kr)::awn(16)
    ! internals
-   integer::l,j,n,max,iza,i
+   integer::l,j,n,max,i
+   integer::indx,idiff,isuff,lenhz
    integer::izo(16)
    real(kr)::awo(16)
    character(70)::hko
-   real(kr)::zaid
-   character(3)::ht
-   character(9)::str
    real(kr),parameter::zero=0
 
    integer,parameter::ner=1
@@ -591,10 +590,7 @@ contains
       n=(len2+3)/4
       n=n-1
       l=0
-      do i=1,n
-         read (nin,'(4e20.0)') (xss(l+j),j=1,4)
-         l=l+4
-      enddo
+      read (nin,'(4e20.0)') xss(1:len2)
 
    !--read type 2 ace format file
    else if (itype.eq.2) then
@@ -619,23 +615,7 @@ contains
    endif
 
    !--adjust zaid
-   if (mcnpx.gt.0) then
-       read(hz,'(f10.0,a3)') zaid,ht
-   else
-       read(hz,'(a9,a1)') str,ht
-       if (ht(1:1).ne.'t') then
-          read(hz,'(f9.0,a1)') zaid,ht
-       endif
-   endif
-   if (suff.ge.zero.and.ht(1:1).ne.'t') then
-      iza=nint(zaid)
-      zaid=iza+suff
-      if (mcnpx.gt.0) then
-          write(hz,'(f10.3,a3)') zaid,ht
-      else
-          write(hz,'(f9.2,a1)') zaid,ht
-      endif
-   endif
+   if (suff.ge. 0._kr) call newsuff(mcnpx,suff,hz)
 
    !--adjust comment and (iz,aw) list
    if (len_trim(hk).eq.0) then
@@ -656,7 +636,7 @@ contains
    return
    end subroutine thrfix
 
-   subroutine thrlod(nin,matd,tempd,tname,suff,izn,iza01,iza02,iza03,&
+   subroutine thrlod(nin,matd,tempd,tname,suff,izn,&
      nbini,nang,nmix,iwt,mcnpx)
    !-------------------------------------------------------------------
    ! write a thermal output tape in ace format.
@@ -665,7 +645,7 @@ contains
    use util ! provides date,repoz
    use mainio ! provides nsyso
    ! externals
-   integer::nin,matd,iza01,iza02,iza03,nbini,nang,nmix,iwt,mcnpx
+   integer::nin,matd,nbini,nang,nmix,iwt,mcnpx
    real(kr)::tempd,suff
    integer::izn(16)
    character(6)::tname
@@ -688,9 +668,6 @@ contains
    endif
    call dater(hdt)
    hd='  '//hdt
-   izn(1)=iza01
-   izn(2)=iza02
-   izn(3)=iza03
    ncl=0
    idpni=3
    idpnc=0

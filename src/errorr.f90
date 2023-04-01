@@ -30,7 +30,7 @@ module errorm
    integer::nscr1,nscr2,nscr3
 
    ! group structure
-   integer::ngn
+   integer::ngn,nwgp
    real(kr),dimension(:),allocatable::egn
 
    ! weight function
@@ -131,7 +131,6 @@ module errorm
 
    ! SNL-specific arrays
    real:: covsnl(500,500), std(500), xsc(500), pstd(500), egnsnl(500)
-
 contains
 
    subroutine errorr
@@ -162,11 +161,11 @@ contains
    !
    ! 9/17/2012 ... important changes
    ! - ngout = input gendf input tape
-   !           -  this tape may contain multiple temperatures,
-   !              multiple Legendre moments and multiple sigma-0
-   !              data, but ...
-   !              - only the first (infinitely dilute) sigma-0
-   !                data will be used.
+   !           - this tape may contain multiple temperatures,
+   !             multiple Legendre moments and multiple sigma-0
+   !             data, but ...
+   !           - only the first (infinitely dilute) sigma-0
+   !             data will be used.
    !
    ! - card 3 is now REQUIRED and the specified temperature must
    !   be one of those on the gendf tape.
@@ -192,7 +191,7 @@ contains
    !  card 2
    !    matd    material to be processed
    !    ign     neutron group option
-   !            (ign definition same as groupr, except ign=19,
+   !            (ign definition same as groupr, except ign=-1,
    !            which means read in an energy grid, as in ign=1,
    !            and supplement this with the endf covariance grid
    !            within the range of the user-specified energies)
@@ -201,8 +200,8 @@ contains
    !    iprint  print option (0/1=minimum/maximum) (default=1)
    !    irelco  covariance form (0/1=absolute/relative) (default=1)
    !
-   !  card 3    *** REQIURED for njoy2012_0917 & later ***
-   !    mprint  print option for group averaging (0=min., 1=max.)
+   !  card 3    (*** REQUIRED for njoy2012 and later ***)
+   !    mprint  print option for group averaging (0/1=min (default)/max)
    !    tempin  temperature (default=300)
    !
    !---for endf/b version 4 (iverf=4) only--------------------------
@@ -292,7 +291,7 @@ contains
    !    entries on card 11.  the group xsec tape ngout must include
    !    all covariance reactions in matd, plus matc(1)-mtc(1).
    !
-   !  card 12a (for ign eq 1 or ign eq 19)
+   !  card 12a (for ign eq 1 or ign eq -1)
    !    ngn     number of groups
    !  card 12b
    !    egn     ngn+1 group bounds (ev)
@@ -309,6 +308,8 @@ contains
    !      ign          meaning
    !      ---          -------
    !       1           arbitrary structure (read in)
+   !      -1           arbitrary structure (read in), supplemented with endf
+   !                   covariance grid
    !       2           csewg 239-group structure
    !       3           lanl 30-group structure
    !       4           anl 27-group structure
@@ -325,8 +326,23 @@ contains
    !      15           sand-iia 640-group structure
    !      16           vitamin-e 174-group structure
    !      17           vitamin-j 175-group structure
-   !      18           xmas 172-group structure
-   !      19           read in, supplemented with endf covariance grid
+   !      18           xmas nea-lanl
+   !      19           ecco  33-group structure
+   !      20           ecco 1968-group structure
+   !      21           tripoli 315-group structure
+   !      22           xmas lwpc 172-group structure
+   !      23           vit-j lwpc 175-group structure
+   !      24           shem cea 281-group structure
+   !      25           shem epm 295-group structure
+   !      26           shem cea/epm 361-group structure
+   !      27           shem epm 315-group structure
+   !      28           rahab aecl 89-group structure
+   !      29           ccfe   660-group structure  (30 MeV)
+   !      30           ukaea 1025-group structure  (30 MeV)
+   !      31           ukaea 1067-group structure (200 MeV)
+   !      32           ukaea 1102-group structure   (1 GeV)
+   !      33           ukaea  142-group structure (200 MeV)
+   !      34           lanl 618-group structure
    !
    !      iwt          meaning
    !      ---          -------
@@ -411,7 +427,7 @@ contains
    nstan=0
    nscr5=0
    read(nsysi,*) nendf,npend,ngout,nout,nin,nstan
-
+   
    ! Use SNL-specific covariance output
    open(unit=77,file='std.plot',status='unknown')
    open(unit=78,file='lsl_interface.cov',status='unknown')
@@ -424,7 +440,7 @@ contains
          covsnl(jk,jl) = 0.0
       end do
    end do
-
+   
    ngoutu=ngout
 
    if (nendf.eq.999) then
@@ -483,6 +499,11 @@ contains
    if (iwt.le.0) then
       call mess ('errorj','input weighting function not supported',&
                  'switching to default, iwt=6')
+      iwt=6
+   endif
+   if (ign.eq.19) then
+      call mess ('errorr','neutron group structure option 19 has been ',&
+                 'changed, you may want to use -1 instead')
       iwt=6
    endif
    mprint=0
@@ -931,7 +952,7 @@ contains
       write(strng,'(''no data on file for mfcov='',i3)') mfcov
       call mess('errorr',strng,'processing terminated')
       !--skip remaining errorr input (if any)
-      if (ign.eq.1.or.ign.eq.19) then
+      if (abs(ign).eq.1) then
          read(nsysi,*) ng
          ngp=ng+1
          read(nsysi,*) (dmy,i=1,ngp)
@@ -995,7 +1016,7 @@ contains
 
    ntape=-10 !careful ... must match ngout (grpav) and ntp (colaps)!
    call openz(ntape,1)
-   call egngpn
+   call egngpn(ign,ngn,egn)
 
    !--if an mfcov=34 job, check various mf4 and mf34 flags to see
    !  whether a gendf tape is required.
@@ -1077,6 +1098,7 @@ contains
    call timer(time)
    write(nsyso,'(69x,f8.1,''s''/1x,77(''*''))') time
 
+   ! ----------------------------------------------
    ! Wrap-up SNL-specific covariance output
    !
    ! finish special output for lsl interface
@@ -1088,45 +1110,45 @@ contains
    ! 7634       format (1x, 'cov row ', i8)
    !            write(78,8990) (covsnl(i1,i2),i2=1,ngn)
    !         enddo
-      do i1 = 1,ngn
-         zzap = covsnl(i1,i1)
+   do i1 = 1,ngn
+      zzap = covsnl(i1,i1)
+      if ( zzap.gt.0.0 ) then
+         std(i1) = sqrt(zzap)
+      else
+         std(i1) = 1.e-20
+      endif
+   end do
+   do i1 = 1,ngn
+      do i2 = i1,ngn
+         zzap = std(i1)*std(i2)
          if ( zzap.gt.0.0 ) then
-            std(i1) = sqrt(zzap)
+            covsnl(i1,i2) = covsnl(i1,i2)/zzap
          else
-            std(i1) = 1.e-20
+            covsnl(i1,i2) = 0.0
          endif
+         if ( i1 == i2) covsnl(i1,i2) = 1.
       end do
-      do i1 = 1,ngn
-         do i2 = i1,ngn
-            zzap = std(i1)*std(i2)
-            if ( zzap.gt.0.0 ) then
-               covsnl(i1,i2) = covsnl(i1,i2)/zzap
-            else
-               covsnl(i1,i2) = 0.0
-            endif
-            if ( i1 == i2) covsnl(i1,i2) = 1.
-         end do
-      end do
+   end do
    !
    ! title cards
    !
       write(78,8562)
- 8562 format(    '*cor    (library)    (mat.#)    (temp)k')
+8562 format(    '*cor    (library)    (mat.#)    (temp)k')
    !
    ! energy grid
    !
       write(78,8996)
- 8996 format('*number of energies plus 1')
+8996 format('*number of energies plus 1')
       write(78,8995) ngn+1
       write(78,8993)
- 8993 format('*energy grid ( ev )')
- 8995 format(i5)
+8993 format('*energy grid ( ev )')
+8995 format(i5)
       write(78,8990) (egn(jk),jk=1,ngn+1)
    !
    ! cross section
    !
       write(78,8998)
- 8998 format('*cross section ( barns )')
+8998 format('*cross section ( barns )')
       write(78,7454) (xsc(jk), jk=1,ngn)
       do i1 = 1,ngn
          zzap = xsc(i1)
@@ -1140,37 +1162,37 @@ contains
    ! standard deviation
    !
       write(78,8991)
- 8991 format('*% standard deviation')
+8991 format('*% standard deviation')
       write(78,8990) (pstd(i1),i1=1,ngn)
    !
    ! write standard deviation to another file for input
    !   into a plotting package
    !
       write(77,9101)
-   9101 format(' standard deviation',/,&
+9101 format(' standard deviation',/,&
      &       ' (input is in _templegraph_ format)',/)
       do i1 = 1,ngn
          write(77,9102)egn(i1),pstd(i1)
          write(77,9102)egn(i1+1),pstd(i1)
       end do
-   9102 format(2(5x,1pe10.3))
+9102 format(2(5x,1pe10.3))
    close(unit=77)
-
+   
    !
    ! correlation coefficients
    !
       write(78,8992)
- 8992 format('*correlation coefficient -- upper triangular')
+8992 format('*correlation coefficient -- upper triangular')
       do i1 = 1,ngn
    !         write(78,8990) (ifix(1000.0*cov(i1,i2)),i2=i1,ngn)
          write(78,8990) ((1.0*covsnl(i1,i2)),i2=i1,ngn)
       end do
- 8990 format((1x,8(1pe10.3,1x)))
- 7454 format((1x,1p8e10.3))
- 7990 format((1x,15(i4,1x)))
+8990 format((1x,8(1pe10.3,1x)))
+7454 format((1x,1p8e10.3))
+7990 format((1x,15(i4,1x)))
    close(unit=78)
    if (allocated(egn))  deallocate(egn)
-
+   ! ---------------------------------------
    return
    end subroutine errorr
 
@@ -6263,11 +6285,13 @@ contains
       c(1)=csig(ig,1)
       write(nsyso,'(i5,1p,6e12.4)') ig,egn(ig),cflx(ig),c(1)
 
+      ! -------------------------------------------------
       xsc(ig) = c(1)
-    ! for covariance of a spectrum - convert dn/dE into a number fraction
-      if ( mt .eq. 261) then
-        xsc(ig) = c(1)*cflx(ig)
-      endif
+      ! for covariance of a spectrum - convert dn/dE into a number fraction
+        if ( mt .eq. 261) then
+          xsc(ig) = c(1)*cflx(ig)
+        endif
+      ! --------------------------------------------------------------
 
    enddo
    if (nout.ne.0) call afend(nout,0)
@@ -7679,19 +7703,19 @@ contains
                if (nc.gt.6) nc=6
                write(nsyso,'(i4,i6,1p,6e11.3)')&
                  ig,ig2lo,(scr(ibase+i),i=1,nc)
-
+   ! --------------------------------------------------      
    !           SNL-specific relative covariance save
-               if ( ig.le.500.and.ig2lo+nc-1.le.500 ) then
-                 do i = 1,nc
-                  covsnl(ig,ig2lo+i-1) = scr(ibase+i)
-                  covsnl(ig2lo+i-1,ig) = covsnl(ig,ig2lo+i-1)
-                 end do
-               else
-                 write(78,9023) ig, ig2lo, nc
- 9023            format(1x,'***error *** cov bounds exceeded', 5i7)
-                 stop 'cov bounds'
-               endif
-
+                 if ( ig.le.500.and.ig2lo+nc-1.le.500 ) then
+                  do i = 1,nc
+                   covsnl(ig,ig2lo+i-1) = scr(ibase+i)
+                   covsnl(ig2lo+i-1,ig) = covsnl(ig,ig2lo+i-1)
+                  end do
+                else
+                  write(78,9023) ig, ig2lo, nc
+  9023            format(1x,'***error *** cov bounds exceeded', 5i7)
+                  stop 'cov bounds'
+                endif               
+   ! ----------------------------------------------------------            
                ibase=ibase+nc
                ig2lo=ig2lo+nc
                nw=nw-nc
@@ -8044,17 +8068,17 @@ contains
       endif
    enddo
 
-     if ( ic .eq. 0)  write (nsyso, 581) mts(1)
- 581    format ( 1x, '*** SNL covariance processing note ', &
-   &           /,1x, '*** Processing of xsec/number-fraction' &
-   &            ' based on ', i6,/)
-
+   ! -------------------------------------------
+   if ( ic .eq. 0)  write (nsyso, 581) mts(1)
+581    format ( 1x, '*** SNL covariance processing note ', &
+  &           /,1x, '*** Processing of xsec/number-fraction' &
+  &            ' based on ', i6,/)
+   ! ---------------------------------------------------------  
    if (ic.eq.0) write(nsyso,'(/&
      &'' table of multigroup cross sections''//&
      &'' group   lower       group     cross section''/&
      &''  no.    energy      flux  '',4x,4(a2,i3,7x))')&
      (hmt,mts(i),i=1,nmtend)
-
    if (ic.gt.0) write(nsyso,'(/&
      &'' table of multigroup cross sections''//&
      &'' group   lower       group     cross section''/&
@@ -8070,25 +8094,24 @@ contains
       enddo
       write(nsyso,'(i5,1p,6e12.4)')&
         ig,egn(ig),cflx(ig),(c(i),i=1,nmtend)
-
-      xsc(ig) = c(1)
-
-      ! for spectrum covariance, convert dn/dE into a number fraction
-      if (mts(1) .eq. 261) then 
-         xsc(ig) = c(1)*cflx(ig)
-      endif
-
-      if ( ig .eq. 1 .and. nmtend .ne. 1) then
-        write (nsyso, 781) nmtend
- 781    format ( 1x, '*** SNL covariance processing warning ', &
-   &           /,1x, '*** multiple processed components incompatible' &
-   &            ' with lsl std/cov extraction ', i6)
-!        write (nsyso, 581) mts(1)
-! 581    format ( 1x, '*** SNL covariance processing note ', &
-!   &           /,1x, '*** Processing of xsec/number-fraction' &
-!   &            ' based on ', i6)
-      endif
-
+   ! -----------------------------------------------------------------------
+        xsc(ig) = c(1)
+        ! for spectrum covariance, convert dn/dE into a number fraction
+        if (mts(1) .eq. 261) then 
+           xsc(ig) = c(1)*cflx(ig)
+        endif
+  
+        if ( ig .eq. 1 .and. nmtend .ne. 1) then
+          write (nsyso, 781) nmtend
+   781    format ( 1x, '*** SNL covariance processing warning ', &
+     &           /,1x, '*** multiple processed components incompatible' &
+     &            ' with lsl std/cov extraction ', i6)
+  !        write (nsyso, 581) mts(1)
+  ! 581    format ( 1x, '*** SNL covariance processing note ', &
+  !   &           /,1x, '*** Processing of xsec/number-fraction' &
+  !   &            ' based on ', i6)
+        endif
+   ! ----------------------------------------------------------------
    enddo
    go to 510
   460 continue
@@ -9835,38 +9858,59 @@ contains
    return
    end subroutine epanel
 
-   subroutine egngpn
-   !--------------------------------------------------------------------
+   subroutine egngpn(ign,ngn,egn)
+   !-------------------------------------------------------------------
    ! Generate requested neutron group structure or read in from
-   ! the system input file in the form of an ENDF list record.
+   ! the system input file in the form of an ENDF list record
    !
    !    ign     meaning
    !    ---     ---------------------------------------
-   !     1      arbitrary structure (read in)
-   !     2      csewg 239 group structure
-   !     3      lanl 30 group structure
-   !     4      anl 27 group structure
-   !     5      rrd 50 group structure
-   !     6      gam-i 68 group structure
-   !     7      gam-ii 100 group structure
-   !     8      laser-thermos 35 group
-   !     9      epri-cpm 69 group structure
-   !    10      lanl 187-group structure
-   !    11      lanl 70-group structure
-   !    12      sand-ii 620-group structure
-   !    13      lanl 80-group structure
-   !    14      eurlib 100-group structure
-   !    15      sand-iia 640-group structure
-   !    16      vitamin-e 174-group structure
-   !    17      vitamin-j 175-group structure
-   !    18      xmas 172-group structure
-   !    19      read in, supplemented with endf covariance grid
+   ! abs(1)     arbitrary structure (read in)
+   !     2      CSEWG 239 group structure
+   !     3      LANL 30 group structure
+   !     4      ANL 27 group structure
+   !     5      RRD 50 group structure
+   !     6      GAM-I 68 group structure
+   !     7      GAM-II 100 group structure
+   !     8      LASER-THERMOS 35 group
+   !     9      EPRI-CPM/WIMS 69 group structure
+   !    10      LANL 187-group structure
+   !    11      LANL 70-group structure
+   !    12      SAND-II 620-group structure
+   !    13      LANL 80-group structure
+   !    14      EURLIB 100-group structure
+   !    15      SAND-IIA 640-group structure
+   !    16      VITAMIN-E 174-group structure
+   !    17      VITAMIN-J 175-group structure
+   !    18      XMAS 172-group structure
+   !    19      ECCO  33-group structure
+   !    20      ECCO 1968-group structure
+   !    21      TRIPOLI 315-group structure
+   !    22      XMASLWC 172-group structure
+   !    23      VIT-J lwpc 175-group structure
+   !    24      SHEM CEA 281-group structure
+   !    25      SHEM EPM 295-group structure
+   !    26      SHEM CEA/EPM 361-group structure
+   !    27      SHEM EPM 315-group structure
+   !    28      RAHAB AECL 89-group structure
+   !    29      CCFE   660-group structure
+   !    30      UKAEA 1025-group structure
+   !    31      UKAEA 1067-group structure
+   !    32      UKAEA 1102-group structure
+   !    33      UKAEA  142-group structure
+   !    34      LANL 618-group structure
    !
-   !--------------------------------------------------------------------
-   use mainio ! provides nsysi,nsyso,nsyse
-   use util ! provides error,sigfig
+   !-------------------------------------------------------------------
+   use mainio ! provides nsyso
+   use util   ! provides error
+   use groupm ! provides gengpn
+   ! externals
+   integer::ign,ngn
+   real(kr),dimension(:),allocatable::egn
    ! internals
-   integer::lflag,ngp,i,ig,n1,n2,n,ic
+   !integer::ig,ngp
+   integer::lflag,ig,ngp,n1,n2,n,i,ic
+   !real(kr)::ew,ewmin
    real(kr)::u,du,delta,ew,ewmin
    real(kr),dimension(241),parameter::gl2=(/&
      27.631e0_kr,17.0e0_kr,16.75e0_kr,16.588e0_kr,16.5e0_kr,16.3e0_kr,&
@@ -10378,6 +10422,9 @@ contains
            ig,egn(ig),egn(ig+1)
       enddo
    endif
+
+   !call gengpn(ign,ngn,egn)
+
    ewmin=1.05e0_kr
    do ig=1,ngn
       if (egn(ig+1).lt.0.1e0_kr) then
@@ -10395,7 +10442,7 @@ contains
       egn(i)=sigfig(egn(i),ndig,0)
    enddo
    call uniong(nendf)
-   if (ign.eq.19) then
+   if (ign.eq.-1) then
       write(nsyso,'(/&
         &'' union structure (= user structure) has'',i5,&
         &'' groups''/)') nunion
@@ -11533,6 +11580,7 @@ contains
    iloop=iloop+1
    call contio(ngout,0,0,c1,nb,nw)
    if (iloop.eq.1.and.nint(c1(5)).ne.-1) then
+      !write(strng,'("ngout = ",i2," is not a gendf tape")')ngout
       write(strng,'("ngout = ",i2," is not a gendf tape, c1(5)= ", i5)')ngout, nint(c1(5))
       call error('ngchk',strng,'')
    endif
@@ -11721,12 +11769,13 @@ contains
    !-- finished with all relevant mf's for this material ...
    !   -  write material end record on the condensed GENDF tape
    call amend(nscr5,0)
+   ! -----------------------------------------------
    if ( nmt1 .ne. 0) then
-     write(nsyso,'(/'' SNL WARNING: ngchk null out multiple materials'' &
-  &                 , 2i5)') nmt1
-     goto 1900
-   endif
-
+      write(nsyso,'(/'' SNL WARNING: ngchk null out multiple materials'' &
+   &                 , 2i5)') nmt1
+      goto 1900
+    endif
+   ! --------------------------------------------------------------
 
    if (nmt1.ne.0) then
    !-- rewind the input GENDF tape
@@ -11746,6 +11795,7 @@ contains
          goto 100
       endif
    endif
+
  1900 continue
 
    !-- all done ...
@@ -11768,4 +11818,3 @@ contains
    end subroutine ngchk
 
 end module errorm
-
