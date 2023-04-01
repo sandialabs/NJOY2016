@@ -1,6 +1,7 @@
 module acefc
    ! provides fast continuous options for acer
    use locale
+   use acecm, only: xss,nxss
    implicit none
    private
 
@@ -81,10 +82,6 @@ module acefc
 
    ! storage for ptleg data
    real(kr),dimension(:),allocatable::xat
-
-   ! main container array for fast continuous data
-   integer,parameter::nxss=20000000
-   real(kr)::xss(nxss)
 
 contains
 
@@ -9891,13 +9888,16 @@ contains
                xss(next)=0
                xss(next+1)=2
                xss(next+2)=sigfig(xss(esz+it-1),7,0)
-               xss(next+3)=1
-               xss(next+4)=sigfig(xss(esz+nes-1),7,0)
+               xss(next+3)=sigfig(xss(esz+nes-1),7,0)
+               xss(next+4)=1
                xss(next+5)=1
                next=next+2+2*2
                xss(last+2)=next-dlwh+1
-               xss(next)=0
-               xss(next+1)=awi/(awr+awi)
+               amass=awr/awi
+               aprime=awp/awi
+               xss(next)=sigfig((1+amass)*(-q)/amass,7,0)
+               xss(next+1)=&
+                 sigfig(amass*(amass+1-aprime)/(1+amass)**2,7,0)
                next=next+2
                ! add in contribution to heating
                naa=nint(xss(hpd+1))
@@ -10019,13 +10019,17 @@ contains
                      xss(next)=0
                      xss(next+1)=2
                      xss(next+2)=sigfig(xss(esz+it-1),7,0)
-                     xss(next+3)=1
-                     xss(next+4)=sigfig(xss(esz+nes-1),7,0)
+                     xss(next+3)=sigfig(xss(esz+nes-1),7,0)
+                     xss(next+4)=1
                      xss(next+5)=1
                      next=next+2+2*2
                      xss(last+2)=next-dlwh+1
-                     xss(next)=0
-                     xss(next+1)=awi/(awr+awi)
+                     amass=awr/awi
+                     aprime=awp/awi
+                     xss(next)=sigfig((1+amass)*(-q)/amass,7,0)
+                     xss(next+1)=&
+                       sigfig(amass*(amass+1-aprime)/(1+amass)**2,7,0)
+
                      next=next+2
                      ! add in contribution to heating
                      naa=nint(xss(hpd+1))
@@ -12705,7 +12709,8 @@ contains
    !-------------------------------------------------------------------
    ! Write ACE data out in desired format.
    !-------------------------------------------------------------------
-   use util ! provides openz,closz,error
+   use util  ! provides openz,closz,error
+   use acecm ! provides write routines
    ! externals
    integer::itype,nace,ndir,mcnpx
    character(70)::hk
@@ -12813,6 +12818,8 @@ contains
    ! If nout.eq.1, integer fields are changed to real in memory
    !    (fields are assumed to contain mixed reals and integers).
    !-------------------------------------------------------------------
+   use util  ! provides openz,closz,error
+   use acecm ! provides write routines
    ! externals
    integer::nout
    ! internals
@@ -12820,11 +12827,9 @@ contains
    integer::ly,lnw,law,net,nmu,kk,nep,nure,nurb,mftype
    integer::nyp,ntro,jj,ir,nyh,li,ii,ntrh
 
-   !--write or convert esz block
-   n=5*nes
-   do i=1,n
-      call typen(i,nout,2)
-   enddo
+   !--write esz block
+   call advance_to_locator(nout,l,esz)
+   call write_real_list(nout,l,5*nes)
 
    !--nu block
    if (nu.ne.0) then
@@ -14050,6 +14055,11 @@ contains
                            enddo
                         enddo
                      enddo
+
+                   ! unknown law
+                   else
+                      write(text,'(''Undefined law for dlwh block: '',i3)') law
+                      call error('change',text,' ')
                   endif
                endif
             enddo
@@ -14070,39 +14080,13 @@ contains
    return
    end subroutine change
 
-   subroutine typen(l,nout,iflag)
-   !-------------------------------------------------------------------
-   ! Write an integer or a real number to a Type-1 ACE file,
-   ! or (if nout=0) convert real to integer for type-3 output,
-   ! or (if nout=1) convert integer to real for type-3 input.
-   ! Use iflag.eq.1 to write an integer (i20).
-   ! Use iflag.eq.2 to write a real number (1pe20.11).
-   ! Use iflag.eq.3 to write partial line at end of file.
-   !-------------------------------------------------------------------
-   ! externals
-   integer::l,nout,iflag
-   ! internals
-   integer::i,j
-   character(20)::hl(4)
-   save hl,i
-
-   if (iflag.eq.3.and.nout.gt.1.and.i.lt.4) then
-      write(nout,'(4a20)') (hl(j),j=1,i)
-   else
-      i=mod(l-1,4)+1
-      if (iflag.eq.1) write(hl(i),'(i20)') nint(xss(l))
-      if (iflag.eq.2) write(hl(i),'(1p,e20.11)') xss(l)
-      if (i.eq.4) write(nout,'(4a20)') (hl(j),j=1,i)
-   endif
-   return
-   end subroutine typen
-
    subroutine acefix(nin,itype,nout,ndir,iprint,nplot,suff,&
      nxtra,hk,izn,awn,mcnpx)
    !-------------------------------------------------------------------
    ! Print or edit ACE files.
    !-------------------------------------------------------------------
-   use util ! provides openz,closz,error
+   use util  ! provides openz,closz
+   use acecm ! provides write routines
    ! externals
    integer::nin,itype,nout,ndir,iprint,nplot,nxtra,mcnpx
    real(kr)::suff
