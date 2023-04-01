@@ -30,7 +30,7 @@ module errorm
    integer::nscr1,nscr2,nscr3
 
    ! group structure
-   integer::ngn,nwgp
+   integer::ngn
    real(kr),dimension(:),allocatable::egn
 
    ! weight function
@@ -94,7 +94,11 @@ module errorm
    real(kr),dimension(:),allocatable::cflx
    real(kr),dimension(:,:),allocatable::csig
 
-   real(kr)::u1lele(10),plele(2501,10)
+   integer,parameter::ngmax=2501 ! max number groups in union grid
+   integer,parameter::lomax=10   ! max legendre order
+   real(kr),dimension(:,:),allocatable::plele
+
+   real(kr)::u1lele(10)
    integer::nr,nbt(20),jnt(20)
 
    ! globals for resonance processing
@@ -347,7 +351,7 @@ contains
    use physics ! provides amassn, amu, ev, hbar
    ! internals
    integer::i,icov,nb,nw,mprint,nwi,nx,ndictm,nwl,ix,l
-   integer::mf,mfi,mt,neki,j,k,ii1,ii2,ii3,ii4
+   integer::mf,mt,neki,j,k,ii1,ii2,ii3,ii4
    integer::lim,ii,ntape,nek1,idone,iadd,nwscr
    integer::ng,ngp,iwtt,iw,np,nr
    integer::mat,nfissp,is
@@ -2506,8 +2510,6 @@ contains
    ! internals
    integer::isym,lb,ibase,ne,ne1,i,j,is
    real(kr)::sumt
-   character(66)::c
-   real(kr)::b(17)
    real(kr),dimension(:),allocatable::rcs,spc
    real(kr),parameter::stst=1.0e-5_kr
    real(kr),parameter::sml=1.0e-30_kr
@@ -2610,14 +2612,16 @@ contains
    real(kr)::covm(*),spc(ne1)
    ! internals
    character(60)::strng
-   character(66)::c
    integer,parameter::nnw=10000
-   integer::mtt,mf56,mat,mf,mt,nk
+   integer::mtt,mf56,nk
    integer::i,nb,nw,k,lf,nr1,nr2,np1,np2,ib,ib2,iloop,ibx,nr12,np12
    integer::ir,ip,idis,izap,law,lang,lep,ib2x,na,nep,indx1,nnk,nd
-   real(kr)::c1,c2,esp,pe,enext,elow,ehigh,aaa
+   real(kr)::esp,pe,enext,elow,ehigh,aaa
    real(kr),dimension(:),allocatable::scr3
-   real(kr)::b(nnw)
+   real(kr),dimension(:),allocatable::b
+
+   allocate(b(nnw))
+   b=0.
 
    !--allocate scratch storage and initialize the spectrum
    !--integral array
@@ -2879,6 +2883,9 @@ contains
 
    mtd=iabs(mti)
    if (mfd.gt.1) go to 200
+   do i=1,100
+      mtsig0(i)=0
+   end do
 
    !--copy rest of this mat to a scratch file.
    call repoz(nscr2)
@@ -3341,12 +3348,12 @@ contains
    integer::nsrs,nlrs,njsx,nparb,idis,lord
    integer::i,nb,nw
    integer::isrrr
-   real(kr)::el,eh,spin,ap,awri,aw,fact,en,rat,frac
-   real(kr)::e,enext,wt,wtl,elo,ehi,enxt,ee,eel,tmp
+   real(kr)::el,eh,spin,ap,awri,aw,fact,rat,frac
+   real(kr)::e,enext,wt,wtl,elo,ehi,ee,eel,tmp
    integer,parameter::nodmax=30000
-   real(kr)::enode(nodmax)
+   real(kr),dimension(:),allocatable::enode
    integer,parameter::maxb=90000
-   real(kr)::b(maxb)
+   real(kr),dimension(:),allocatable::b
 
    real(kr),dimension(:),allocatable::sdev
    real(kr),dimension(:,:),allocatable::cov
@@ -3364,6 +3371,12 @@ contains
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::zero=0
    real(kr),parameter::ten=10
+
+   allocate(enode(nodmax))
+   allocate(b(maxb))
+   enode=0.
+   b=0.
+   l3=1
 
    !--read in the resonance parameters for computing cross sections
    isrrr=1
@@ -3791,6 +3804,8 @@ contains
    !--clean up allocated arrays
    deallocate(sens)
    deallocate(cov)
+   deallocate(enode)
+   deallocate(b)
 
    return
    end subroutine rpxsamm
@@ -3814,8 +3829,11 @@ contains
    real(kr)::awri,aw,sum,den,fl,ajmax,aj
    real(kr)::er,rho,ser,per,corr,ebc,e1,ekp
    real(kr)::er1,er2,er3,er4,er5,er6,s
-   real(kr)::sig(maxe,5),gsig(4,2501,6),sig1(4)
-   real(kr)::sens(4,6,2501),cov(5,5)
+   real(kr),dimension(:,:),allocatable::sig
+   real(kr),dimension(:,:,:),allocatable::gsig
+   real(kr)::sig1(4)
+   real(kr),dimension(:,:,:),allocatable::sens
+   real(kr)::cov(5,5)
    real(kr)::ag(6),aa(3),aa2(3)
    character(60)::strng1,strng2
    logical::lneger
@@ -3824,6 +3842,13 @@ contains
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::half=0.5e0_kr
    real(kr),parameter::zero=0
+
+   allocate(sig(maxe,5))
+   allocate(gsig(4,ngmax,6))
+   allocate(sens(4,6,ngmax))
+   sig=0.
+   gsig=0.
+   sens=0.
 
    lneger=.false.
 
@@ -4152,6 +4177,10 @@ contains
    !--end of do loops
    ifresr=1
 
+   deallocate(sig)
+   deallocate(gsig)
+   deallocate(sens)
+
    return
    end subroutine rpxlc0
 
@@ -4177,11 +4206,13 @@ contains
    real(kr)::awri,aw,eres,ajres,backdt,backdt2,backdt3,ajres2
    real(kr)::eres2,gwidth,rho,rr,rr2,ser,per,tmp
    real(kr)::dap2
-   real(kr)::b(maxb)
-   real(kr)::sigr(maxe,5),sigp(maxe,5),gsig(4,2501)
-   real(kr)::sens(4,mxnpar,2501)
-   real(kr)::cov(mxnpar,mxnpar)
-   real(kr)::pneorg(10000)
+   real(kr),dimension(:),allocatable::b
+   real(kr),dimension(:,:),allocatable::sigr
+   real(kr),dimension(:,:),allocatable::sigp
+   real(kr),dimension(:,:),allocatable::gsig
+   real(kr),dimension(:,:,:),allocatable::sens
+   real(kr),dimension(:,:),allocatable::cov
+   real(kr),dimension(:),allocatable::pneorg
    real(kr)::time
    integer::llmat(5)
    character(60)::strng1,strng2
@@ -4189,6 +4220,21 @@ contains
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::zero=0
+
+   allocate(b(maxb))
+   allocate(sigr(maxe,5))
+   allocate(sigp(maxe,5))
+   allocate(gsig(4,ngmax))
+   allocate(sens(4,mxnpar,ngmax))
+   allocate(cov(mxnpar,mxnpar))
+   allocate(pneorg(10000))
+   b=0.
+   sigr=0.
+   sigp=0.
+   gsig=0.
+   sens=0.
+   cov=0.
+   pneorg=0.
 
    !--general resolved resonance subsection formats (lcomp=1)
    !--compact resolved resonance subsection formats (lcomp=2)
@@ -4652,6 +4698,15 @@ contains
       enddo
    endif
    ifresr=1
+
+   deallocate(b)
+   deallocate(sigr)
+   deallocate(sigp)
+   deallocate(gsig)
+   deallocate(sens)
+   deallocate(cov)
+   deallocate(pneorg)
+
    return
    end subroutine rpxlc12
 
@@ -4667,8 +4722,8 @@ contains
    real(kr)::cov(mxnpar,mxnpar),a(nwscr)
    ! internals
    integer::nb,nw,i1,i2,nind,lbg,l1,l2,l3,n1,n2,n3
-   integer::nn1,nn2,nnn,nx,nn2p,nm,i,m,ii,mm,mmm,ndigit,mbase
-   integer,dimension(6)::mpid
+   integer::nn1,nn2,nnn,nx,nn2p,nm,m,ii,mm,mmm,ndigit,mbase
+   integer,dimension(6)::mpid=(/0,0,0,0,0,0/)
    integer,dimension(6),parameter::mpidbw=(/1,4,5,6,0,0/)
    integer,dimension(6),parameter::mpidrm=(/1,3,4,5,6,0/)
    real(kr)::aw,awri,fd,std1,std2
@@ -4677,7 +4732,6 @@ contains
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::half=0.5e0_kr
-   real(kr),parameter::zero=0
 
    if (lrf.eq.1.or.lrf.eq.2) then
       mpid=mpidbw
@@ -4817,18 +4871,32 @@ contains
    integer::mxlru2,iest,ieed,nwscr
    real(kr)::a(nwscr),amur(3,mxlru2)
    ! internals
-   integer::nb,nw,l,l1,l2,l3,nl,ig,i,j,ig2,ii,igind,iscr,njs,inow
+   integer::nb,nw,l1,l2,l3,nl,ig,i,j,ig2,ii,igind,njs,inow
    integer::loop,loopn,l0
    integer,parameter::maxb=4000
    integer,parameter::mxnpar=100
    integer,parameter::maxe=600000
    real(kr)::e1,ebc,sfac,s,tmp,bb
-   real(kr)::sig(maxe,5),sig1(4)
-   real(kr)::gsigr(4,2501),gsigp(4,2501)
-   real(kr)::sens(4,mxnpar,2501),cov(mxnpar,mxnpar)
+   real(kr)::sig1(4)
+   real(kr),dimension(:,:),allocatable::sig
+   real(kr),dimension(:,:),allocatable::gsigr
+   real(kr),dimension(:,:),allocatable::gsigp
+   real(kr),dimension(:,:),allocatable::cov
+   real(kr),dimension(:,:,:),allocatable::sens
    real(kr)::b(maxb)
    character(60)::strng2
    real(kr),parameter::zero=0
+
+   allocate(sig(maxe,5))
+   allocate(gsigr(4,ngmax))
+   allocate(gsigp(4,ngmax))
+   allocate(cov(mxnpar,mxnpar))
+   allocate(sens(4,mxnpar,ngmax))
+   sig=0.
+   gsigr=0.
+   gsigp=0.
+   cov=0.
+   sens=0.
 
    write(*,*)'Unresolved resonance energy range.'
    l1=lptr
@@ -5014,6 +5082,11 @@ contains
 
    ifunrs=1
    write(*,*)'... ended.'
+   deallocate(sig)
+   deallocate(gsigr)
+   deallocate(gsigp)
+   deallocate(cov)
+   deallocate(sens)
 
    return
    end subroutine rpxunr
@@ -5238,14 +5311,13 @@ contains
    ! externals
    integer::igx,ipoint,nwscr
    integer,parameter::maxe=600000
-   real(kr)::egn(*),sig(maxe,5),gsig(4,2501),a(nwscr)
+   real(kr)::egn(*),sig(maxe,5),gsig(4,ngmax),a(nwscr)
    !internals
    integer::k,i,i0,ig,lord,idis,j
    real(kr)::sumde,x1,enext,wt1,wt2,de,ebb,ebx,coef,egnt,egnt1
    real(kr)::wt12,wt3,wtr,x2,xr,y1,xx,xl,x12,y2,y3,yr,yl,z1,z2,z3,zr,zl,wtl
    real(kr),parameter::half=0.5e0_kr
    real(kr),parameter::two=2
-   real(kr),parameter::three=3
    real(kr),parameter::six=6
    real(kr),parameter::zero=0
 
@@ -5445,8 +5517,8 @@ contains
    ! externals
    integer::mprint
    ! internals
-   integer::nwds,nb,ne,nw,i,il,ig2lo,ig,imt,iz,j,ng2,idis,m
-   integer::ngrp,n,n1,n2,n3,n4,nz,ntw,nng,nngr,ngg,nmu
+   integer::nwds,nb,nw,i,il,ig2lo,ig,imt,iz,j,ng2,idis,m
+   integer::n,n1,n2,n3,n4,nz,ntw,nng,ngg,nmu
    real(kr)::sec,etop,ehi,e,enext,elo,thresh,time
    real(kr)::dele,emu,els
    real(kr)::ans(10,2),z(26),flux(10,10),al(10)
@@ -5457,10 +5529,13 @@ contains
    character(66)::text
    character(60)::strng
    real(kr),parameter::eps=1.e-9_kr
-   real(kr),parameter::big=1.e10_kr
    real(kr),parameter::elow=1.e-5_kr
    real(kr),parameter::zero=0
    real(kr),parameter::oneeps=0.99999999_kr
+
+   ! allocate storage
+   allocate(plele(ngmax,lomax))
+   plele=0.
 
    !--initialize
    if (iread.eq.2) call error('grpav4',&
@@ -5599,7 +5674,6 @@ contains
       endif
 
       !--loop over union energy groups
-  200 continue
       n=1
       mfd=3
       mtd=iga(imt)
@@ -5907,7 +5981,7 @@ contains
    real(kr)::csig(ncg,ncm),cflx(ncg),b(*),egt(nun+1)
    real(kr)::flux(nun),sig(nun+1),alp(nun)
    ! internal
-   integer::i,mat,mf,mt,nun1,ig,jg,ij,ibase,ip,ld,nb,nw,ngn1,ix,loc,np,nwds
+   integer::i,mt,nun1,ig,jg,ij,ibase,ip,ld,nb,nw,ngn1,ix,loc,np,nwds
    integer::ngnp1,izero
    real(kr)::abit,sss0
    real(kr)::c(6)
@@ -6553,7 +6627,6 @@ contains
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::half=0.5e0_kr
-   real(kr),parameter::zero=0
 
    !--initialize
    do i=1,4
@@ -6826,7 +6899,6 @@ contains
    real(kr),parameter::rc1=.123e0_kr
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
-   real(kr),parameter::zero=0
 
    !--initialize
    do i=2,4
@@ -6837,6 +6909,9 @@ contains
    nls=nint(a(5))
    nlru2=0
    inow=7
+   vl=0.
+   ps=0.
+   spot=0.
 
    !--do loop over all l states
    do l=1,nls
@@ -7074,6 +7149,17 @@ contains
 
    !--allocate storage.
    nmts=nmt1
+   nmt1d=nmt1
+   nm=0
+   mt1old=0
+   mt1lst=0
+   ldlst=-1
+   ldold=-1
+   iyp=0
+   iy=0
+   nmt1h=0
+   ld0=0
+   nmd=0
    nwds=10000000
    nngn=ngn*(ngn+1)/2
    ngn2=ngn*ngn
@@ -7458,7 +7544,7 @@ contains
   390 continue
 
    ! add contribution from resonance-parameter uncertainty
-   if (mfcov.ne.34.and.mfcov.ne.35) then
+   if (mfcov.eq.33.and.mf32.ne.0) then
       call rescon(ix,ixp,csig,cova,izero,ngn,nmt1)
    endif
 
@@ -7789,6 +7875,7 @@ contains
    if (allocated(alsig)) deallocate(alsig)
    if (allocated(clflx)) deallocate(clflx)
    if (allocated(crr)) deallocate(crr)
+   if (allocated(plele)) deallocate(plele)
    if (nout.eq.0) return
    call afend(nout,0)
    call amend(nout,0)
@@ -8078,6 +8165,7 @@ contains
    if (mf32.eq.0) return
    igmin=0
    igmax=0
+   gno=0
 
    !--initialize
    call repoz(nendf)
@@ -8464,6 +8552,7 @@ contains
             call efacphi(l,rhoc,phi2)
 
             !--correction of penetrability for reduced neutron width
+            !--gno only gets initialised for l=0,1,2
             if (l.eq.0) then
                gno=gnox*sqrt(em)
             else if (l.eq.1) then
@@ -9158,6 +9247,13 @@ contains
    nun1=nunion+1
    call repoz(ngout)
    call repoz(ntp)
+   er=0.
+   ea3=0
+   flxa=0.
+   xnua=0.
+   siga=0.
+   ea1=0.
+   ea2=0.
 
    !--test that ngout is really a groupr output tape
    !--then set scratch space based on problem dependent variables
@@ -11404,15 +11500,14 @@ contains
    use endf   ! provides endf routines and variables
 
    character(70)::strng
-   integer::i,i1,i2,ig,ii,iloop,j,jj,k,kk,lenscrl,lgscr,mloop
+   integer::i,i1,i2,ig,ii,iloop,j,k,kk,lenscrl,lgscr,mloop
    integer::mftest
-   integer::ngmode
    integer::ns0,ntw,nng,ngg,nwl,newnwl
    integer::nl,nlnew,nz,nznew,lrflag,ng,ng2,mfnow
    integer::nt,ntwds
    integer::matds,nb,nbsave,nw,nwsave
    real(kr),dimension(17)::t
-   real(kr),dimension(6)::c1,c2
+   real(kr),dimension(6)::c1
    real(kr),dimension(:),allocatable::gscr,scr1,scrl
    integer,dimension(:),allocatable::matsofar
 

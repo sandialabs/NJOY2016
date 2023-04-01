@@ -25,7 +25,7 @@ module acefc
      iurpt,nud,dndat,ldnd,dnd,jxsd(2),ptype,ntro,ploct
 
    ! index of sections
-   integer,parameter::nxcmax=500
+   integer,parameter::nxcmax=1000
    integer::nxc,mfs(nxcmax),mts(nxcmax),ncs(nxcmax)
 
    ! scratch units
@@ -560,6 +560,8 @@ contains
    enddo
    if (jethr.gt.1) call aordr(jethr,nethr,ethr)
    nethr=jethr
+   ! we're on a fend record, go back one line (this avoids the next findf
+   ! call to see a mend record if the pendf tape only contains mf3)
    call skiprz(npend,-2)
 
    !--for new format...
@@ -1065,6 +1067,7 @@ contains
    allocate(buf(nbuf))
    allocate(bufn(nbuf))
    ithopt=nint(thin(4))
+   npts=0
    if (ithopt.eq.2) iwtt=nint(thin(1))
    if (ithopt.eq.2) npts=nint(thin(2))
    if (ithopt.eq.2) rsigz=thin(3)
@@ -3300,10 +3303,15 @@ contains
    real(kr)::dmu,awr,ein,acos,ep,csn,elb,drv,clb,cmn,qq,aw1
    real(kr)::fmu
    integer,parameter::namax=9000
-   real(kr)::a(namax)
+   real(kr),dimension(:),allocatable::a
    real(kr)::amu(50)
    real(kr)::p(65)
    real(kr),parameter::zero=0
+
+   ! initialise
+   acos=0
+   allocate(a(namax))
+   a=0
 
    !--start the conversion process
    ndebug=nsyso
@@ -3490,6 +3498,10 @@ contains
 
    !--finished with this section
    call tosend(nin,nout,ndebug,a)
+
+   !--deallocate
+   deallocate(a)
+
    return
    end subroutine fix6
 
@@ -3883,7 +3895,12 @@ contains
    call findf(matd,3,0,npend)
    nnth=0
   101 call contio(npend,0,0,scr,nb,nw)
-   if (mfh.eq.0) go to 102
+   if (mfh.eq.0) then
+      ! we're on a fend record, go back one line (this avoids the next findf
+      ! call to see a mend record if the pendf tape only contains mf3)
+      call skiprz(npend,-2)
+      go to 102
+   endif
    e=0
    call gety1(e,enxt,jdis,x,npend,scr)
    nnth=nnth+1
@@ -5731,6 +5748,9 @@ contains
          else
             lct=l2h
             call tab1io(nin,0,0,scr,nb,nw)
+            do while (nb.ne.0)
+               call moreio(nin,0,0,scr,nb,nw)
+            enddo
             awp=c2h
             ltt=1
             law=l2h
@@ -5925,6 +5945,11 @@ contains
          law=l2h
          nn=n1h
          n=n2h
+         loc=1+nw
+         do while (nb.ne.0)
+            call moreio(nin,0,0,scr(loc),nb,nw)
+            loc=loc+nw
+         enddo
          !--dndat entry
          xss(lff)=dntc(i)/shake
          lff=lff+1
@@ -5958,6 +5983,9 @@ contains
          else if (law.eq.5) then
             !--law=5
             call tab1io(nin,0,0,scr,nb,nw)
+            do while (nb.ne.0)
+               call moreio(nin,0,0,scr,nb,nw)
+            enddo
             call tab1io(nin,0,0,scr,nb,nw)
             do while (nb.ne.0)
                call moreio(nin,0,0,scr,nb,nw)
@@ -5984,6 +6012,11 @@ contains
          law=l2h
          nn=n1h
          n=n2h
+         loc=1+nw
+         do while (nb.ne.0)
+            call moreio(nin,0,0,scr(loc),nb,nw)
+            loc=loc+nw
+         enddo
          xxmin=scr(7+2*nn)
          xxmax=scr(5+2*nn+2*n)
          !--ldnd entry
@@ -6050,6 +6083,9 @@ contains
          else if (law.eq.5) then
             !--law=5
             call tab1io(nin,0,0,scr,nb,nw)
+            do while (nb.ne.0)
+               call moreio(nin,0,0,scr,nb,nw)
+            enddo
             call tab1io(nin,0,0,scr,nb,nw)
             loc=1+nw
             do while (nb.ne.0)
@@ -6162,6 +6198,9 @@ contains
          call contio(nin,0,0,scr,nb,nw)
          if (mth.eq.1) then
             call tab1io(nin,0,0,scr,nb,nw)
+            do while (nb.ne.0)
+               call moreio(nin,0,0,scr,nb,nw)
+            enddo
             call tab2io(nin,0,0,scr,nb,nw)
             negn=nint(scr(6))
             if (negn.ne.30) call error('acelod',&
@@ -6223,7 +6262,7 @@ contains
    real(kr)::scr(*)
    real(kr)::awp
    ! internals
-   integer::idone,j,nb,nw,lang,iint,nn,kk,nmu,m,n,i,ne1,ii,ll
+   integer::idone,j,nb,nw,nw2,lang,iint,nn,kk,nmu,m,n,i,ne1,ii,ll
    real(kr)::sum,renorm
    real(kr),parameter::emev=1.e6_kr
    real(kr),parameter::rmin=1.e-30_kr
@@ -6234,9 +6273,15 @@ contains
       do j=1,ne
          if (newfor.eq.0) then
             call tab1io(nin,0,0,scr,nb,nw)
+            do while (nb.ne.0)
+               call moreio(nin,0,0,scr,nb,nw)
+            enddo
          else
             if (law.eq.7) then
                call tab1io(nin,0,0,scr,nb,nw)
+               do while (nb.ne.0)
+                  call moreio(nin,0,0,scr,nb,nw)
+               enddo
             else if (ltt.eq.2) then
                call tab1io(nin,0,0,scr,nb,nw)
                ll=1+nw
@@ -6247,6 +6292,12 @@ contains
                call pttab2(scr)
             else
                call listio(nin,0,0,scr,nb,nw)
+               ll=1+nw
+               do while (nb.ne.0)
+                  call moreio(nin,0,0,scr(ll),nb,nw2)
+                  ll=ll+nw2
+                  nw=nw+nw2 ! nw is used in the if block that follows
+               enddo
                if (mfh.eq.6) then
                   lang=nint(scr(3))
                   if (lang.eq.0) then
@@ -6553,7 +6604,7 @@ contains
    integer::next,i,matd,mt,nin,ismooth
    real(kr)::q
    ! internals
-   integer::nb,nw,nk,k,lf,m,n,jnt,ja,jb,j,l,nextn,nexd,ne,jscr,ki
+   integer::nb,nw,nk,k,lf,m,n,jnt,ja,jb,j,l,nextn,nexd,ne,jscr,ki,loc
    integer::ie,js,is,last,ix,ixx
    real(kr)::u,e,ep,renorm,efl,efh,emin,emax,tme,tmt
    real(kr)::dy,test,xm,ym,yt,dele,ta11
@@ -6585,6 +6636,11 @@ contains
       lf=nint(scr(4))
       m=nint(scr(5))
       n=nint(scr(6))
+      loc=1+nw
+      do while (nb.ne.0)
+         call moreio(nin,0,0,scr(loc),nb,nw)
+         loc=loc+nw
+      enddo
       if (next+2*m+2*n+3.gt.nxss) call error('acelf5',&
         'insufficient space for energy distributions',' ')
       jnt=nint(scr(8))
@@ -6624,6 +6680,13 @@ contains
          call tab2io(nin,0,0,scr,nb,nw)
          m=nint(scr(5))
          n=nint(scr(6))
+         jscr=1
+         do while (nb.ne.0)
+            jscr=jscr+nw
+            if (jscr.gt.nwscr) call error('acelf5',&
+              'scratch storage exceeded reading lf=1',' ')
+            call moreio(nin,0,0,scr(jscr),nb,nw)
+         enddo
          if (next+2*m+1.gt.nxss) call error('acelf5',&
            'insufficient space for energy distributions',' ')
          jnt=nint(scr(8))
@@ -6740,7 +6803,14 @@ contains
            'you will have to patch the evaluation to use lf=1.')
          call tab1io(nin,0,0,scr,nb,nw)
          m=nint(scr(5))
-         n=nint(scr(5))
+         n=nint(scr(6))
+         jscr=1
+         do while (nb.ne.0)
+            jscr=jscr+nw
+            if (jscr.gt.nwscr) call error('acelf5',&
+              'scratch storage exceeded reading lf=5',' ')
+            call moreio(nin,0,0,scr(jscr),nb,nw)
+         enddo
          if (next+2*m+2*n+2.gt.nxss) call error('acelf5',&
            'insufficient space for energy distributions',' ')
          jnt=nint(scr(8))
@@ -6764,6 +6834,13 @@ contains
          call tab1io(nin,0,0,scr,nb,nw)
          m=nint(scr(5))
          n=nint(scr(6))
+         jscr=1
+         do while (nb.ne.0)
+            jscr=jscr+nw
+            if (jscr.gt.nwscr) call error('acelf5',&
+              'scratch storage exceeded reading lf=5',' ')
+            call moreio(nin,0,0,scr(jscr),nb,nw)
+         enddo
          if (next+n+1.gt.nxss) call error('acelf5',&
            'insufficient space for energy distributions',' ')
          xss(next)=n
@@ -6778,6 +6855,13 @@ contains
          call tab1io(nin,0,0,scr,nb,nw)
          m=nint(scr(5))
          n=nint(scr(6))
+         jscr=1
+         do while (nb.ne.0)
+            jscr=jscr+nw
+            if (jscr.gt.nwscr) call error('acelf5',&
+              'scratch storage exceeded reading lf=7 or 9',' ')
+            call moreio(nin,0,0,scr(jscr),nb,nw)
+         enddo
          if (next+2*m+2*n+2.gt.nxss) call error('acelf5',&
            'insufficient space for energy distributions',' ')
          jnt=nint(scr(8))
@@ -6807,6 +6891,11 @@ contains
          m=nint(scr(5))
          n=nint(scr(6))
          jnt=nint(scr(8))
+         loc=1+nw
+         do while (nb.ne.0)
+            call moreio(nin,0,0,scr(loc),nb,nw)
+            loc=loc+nw
+         enddo
          if (next+2*m+2*n+2.gt.nxss) call error('acelf5',&
            'insufficient space for energy distributions',' ')
          if (m.ne.1.or.jnt.ne.2) then
@@ -6829,6 +6918,11 @@ contains
          call tab1io(nin,0,0,scr,nb,nw)
          m=nint(scr(5))
          n=nint(scr(6))
+         loc=1+nw
+         do while (nb.ne.0)
+            call moreio(nin,0,0,scr(loc),nb,nw)
+            loc=loc+nw
+         enddo
          if (next+2*m+2*n+2.gt.nxss) call error('acelf5',&
            'insufficient space for energy distributions',' ')
          jnt=nint(scr(8))
@@ -6855,6 +6949,11 @@ contains
       !--law 12...madland-nix fission spectrum
       else if (lf.eq.12) then
          call tab1io(nin,0,0,scr,nb,nw)
+         loc=1+nw
+         do while (nb.ne.0)
+            call moreio(nin,0,0,scr(loc),nb,nw)
+            loc=loc+nw
+         enddo
          efl=scr(1)
          efh=scr(2)
          m=nint(scr(5))
@@ -7698,6 +7797,9 @@ contains
             nexd=nexd+2
             mus=nexd
             nexd=nexd+2*nmu
+            do while (nb.ne.0)
+               call moreio(nin,0,0,scr(jscr),nb,nw)
+            enddo
             do imu=1,nmu
                jscr=1
                call tab1io(nin,0,0,scr(jscr),nb,nw)
@@ -8981,6 +9083,21 @@ contains
    !--allocate scratch storage
    allocate(scr(nwscr))
 
+   ! initialise
+   aprime=0
+   awp=0
+   chkl=0
+   suml=0
+   iaa=0
+   k=0
+   lld=0
+   lle=0
+   ne=0
+   pp1l=0
+   pp2l=0
+   q=0
+   ubar=0
+
    iza=nint(za)
    emc2=amassn*amu*clight*clight/ev/emev
 
@@ -9529,6 +9646,11 @@ contains
                   do iie=1,ne
                      ll=lld
                      call tab1io(nin,0,0,scr(ll),nb,nw)
+                     ll=ll+nw
+                     do while (nb.ne.0)
+                        call moreio(nin,0,0,scr(ll),nb,nw)
+                        ll=ll+nw
+                     enddo
                      call pttab2(scr(lld))
                      xss(ie+iie)=sigfig(scr(lld+1)/emev,7,0)
                      m=nint(scr(lld+4))
@@ -10180,7 +10302,7 @@ contains
                                  else
                                     intmu=lang-10
                                     nmu=na/2
-                                    llx=lld+6
+                                    llx=lld+6+ncyc*(ig-1)
                                  endif
                                  xss(next+1+3*ng+ig)=nexcd-dlwh+1
                                  xss(nexcd)=intmu
@@ -10491,7 +10613,12 @@ contains
                      npp=2
                      do ie=1,ne
                         ll=llad
-                           call tab1io(nin,0,0,scr(ll),nb,nw)
+                        call tab1io(nin,0,0,scr(ll),nb,nw)
+                        ll=ll+nw
+                        do while (nb.ne.0)
+                           call moreio(nin,0,0,scr(ll),nb,nw)
+                           ll=ll+nw
+                        enddo
                         intmu=l1h
                         nmu=l2h
                         e=c2h
@@ -15303,7 +15430,10 @@ contains
    real(kr)::e,tot,abso,elas,gprod,xtag,ytag,thin,abss
    real(kr)::e1,e2,fiss,cap,heat,dam,x,y,xlast
    real(kr)::xmin,xmax,ymin,ymax,xstep,ystep,test
-   real(kr)::ee(pltumx),s0(pltumx),s1(pltumx),s2(pltumx)
+   real(kr),dimension(:),allocatable::ee
+   real(kr),dimension(:),allocatable::s0
+   real(kr),dimension(:),allocatable::s1
+   real(kr),dimension(:),allocatable::s2
    real(kr)::f0,f1,f2,c1,c2,cl,dp,pp,pe,capt
    character(1)::qu=''''
    character(10)::name
@@ -15323,6 +15453,22 @@ contains
    !--colored pages
    ipcol=2
    iwcol=3
+
+   ! iniatialise
+   k=0
+   kf=0
+   kc=0
+   iif=0
+   iic=0
+   mtl=0
+   allocate(ee(pltumx))
+   allocate(s0(pltumx))
+   allocate(s1(pltumx))
+   allocate(s2(pltumx))
+   ee=0
+   s0=0
+   s1=0
+   s2=0
 
    !--start the viewr input text
    call openz(nout,1)
@@ -16872,6 +17018,12 @@ contains
 
    !--plot particle production sections
    if (ntype.gt.0) call aploxp(nout,iwcol,hk)
+
+   !--deallocate
+   deallocate(ee)
+   deallocate(s0)
+   deallocate(s1)
+   deallocate(s2)
 
    !--end the plotr input text
    write(nout,'(''99/'')')
