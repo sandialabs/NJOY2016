@@ -1,6 +1,7 @@
 module acecm
    ! provides some routines that are common to more than one
-   ! of the submodules of acer; mtname, ptleg2, pttab2, bachaa.
+   ! of the submodules of acer; mtname, ptleg2, pttab2, bachaa,
+   ! newsuff.
    use locale
    implicit none
    private

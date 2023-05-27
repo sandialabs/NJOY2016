@@ -10438,8 +10438,8 @@ contains
 
    !--prepare union of users grid with endf covariance grid.
    ngp=ngn+1
-   do i=1,ngp
-      egn(i)=sigfig(egn(i),ndig,0)
+   do ig=1,ngp
+      egn(ig)=sigfig(egn(ig),ndig,0)
    enddo
    call uniong(nendf)
    if (ign.eq.-1) then

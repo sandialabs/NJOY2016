@@ -3,7 +3,7 @@ module groupm
    use locale
    implicit none
    private
-   public groupr
+   public groupr,gengpn,gengpg
 
    ! global variables
 
@@ -228,8 +228,6 @@ contains
    !     16           vitamin-e 174-group structure
    !     17           vitamin-j 175-group structure
    !     18           xmas nea-lanl
-   !     all new additional group structure with 7 significant
-   !     decimal digits compatible with calendf
    !     19           ecco  33-group structure
    !     20           ecco 1968-group structure
    !     21           tripoli 315-group structure
@@ -1076,8 +1074,12 @@ contains
      (sigz(i),i=2,nsigz)
    if (iaddmt.gt.0) write(nsyso,'(/&
      &'' replacing and/or adding mts'')')
-   call gengpn
-   call gengpg
+   !--exclude ign=-1 (only used in errorr)
+     if (ign.eq.-1) then
+      call error('gengpn','illegal group structure.',' ')
+   endif
+   call gengpn(ign,ngn,egn)
+   call gengpg(igg,ngg,egg)
    call genwtf
    return
    end subroutine ruinb
@@ -1552,14 +1554,14 @@ contains
    return
    end subroutine mfchk2
 
-   subroutine gengpn
+   subroutine gengpn(ign,ngn,egn)
    !-------------------------------------------------------------------
    ! Generate requested neutron group structure or read in from
    ! the system input file in the form of an ENDF list record
    !
    !    ign     meaning
    !    ---     ---------------------------------------
-   !     1      arbitrary structure (read in)
+   ! abs(1)     arbitrary structure (read in)
    !     2      CSEWG 239 group structure
    !     3      LANL 30 group structure
    !     4      ANL 27 group structure
@@ -1597,6 +1599,9 @@ contains
    !-------------------------------------------------------------------
    use mainio ! provides nsyso
    use util   ! provides error
+   ! externals
+   integer::ign,ngn
+   real(kr),dimension(:),allocatable::egn
    ! internals
    integer::lflag,ig,ngp,n1,n2,n,i,ic
    integer::ngp_hold
@@ -4080,9 +4085,10 @@ contains
    lflag=0
 
    !--group structure is read in (free format)
-   if (ign.eq.1) then
+   if (abs(ign).eq.1) then
       read(nsysi,*) ngn
       ngp=ngn+1
+      if (allocated(egn)) deallocate(egn)
       allocate(egn(ngp))
       read(nsysi,*) (egn(ig),ig=1,ngp)
       do ig=1,ngn
@@ -4216,18 +4222,18 @@ contains
       enddo
 
    !--sand-ii 620- and 640-group structures
-   else if (ign.eq.12.or.ign.eq.15 .or. ign.eq.24) then
+   else if (ign.eq.12.or.ign.eq.15.or.ign.eq.99) then
       ngn=620
-      if (ign.eq.24) ngn=770
+      if (ign.eq.99) ngn=770
       if (ign.eq.15) ngn=640
       ngp=ngn+1
       allocate(egn(ngp))
       egn(1)=sanda
       ! generate the first 45 boundaries
-      do i=1,8
-         delta=deltl(i)*sandb
-         n1=ndelta(i)
-         n2=ndelta(i+1)-1
+      do ig=1,8
+         delta=deltl(ig)*sandb
+         n1=ndelta(ig)
+         n2=ndelta(ig+1)-1
          do n=n1,n2
             egn(n)=egn(n-1)+delta
          enddo
@@ -4235,18 +4241,18 @@ contains
       ! correct group 21
       egn(21)=sandc
       ! groups 46 to 450 are multiples of previous groups
-      do i=46,450
-         egn(i)=egn(i-45)*10
+      do ig=46,450
+         egn(ig)=egn(ig-45)*10
       enddo
       ! groups 451 through 620 have constant spacing of 1.e5
       egn(451)=sandd
       ngp_hold = min(ngp,641)
-      do i=452,ngp_hold 
-         egn(i)=egn(i-1)+sande
+      do ig=452,ngp_hold 
+         egn(ig)=egn(ig-1)+sande
       enddo
-      if ( ngp.eq. 771) then
-          do i=642,ngp                                                                     
-             egn(i)=egn(i-1)+sandf                                                         
+      if (ngp.eq. 771) then
+          do ig=642,ngp                                                                     
+             egn(ig)=egn(ig-1)+sandf                                                         
           enddo   
       endif
 
@@ -4267,8 +4273,7 @@ contains
       ngn=100
       ngp=ngn+1
       allocate(egn(ngp))
-      egn(101)=-4
-      egn(101)=egn(101)/10
+      egn(101)=-4*tenth
       ic=0
       do ig=2,101
          if (ig.eq.ig14(ic+1)) ic=ic+1
@@ -4476,7 +4481,7 @@ contains
       enddo
    endif
 
-   !--display group structure
+   !--display group structure - except for ign=-1
    if (ign.eq.1) write(nsyso,'(/&
      &'' neutron group structure......read in'')')
    if (ign.eq.2) write(nsyso,'(/&
@@ -4523,16 +4528,38 @@ contains
      &  '' neutron group structure......xmas lwpc 172-group'')')
    if (ign.eq.23) write(nsyso,'(/&
      &  '' neutron group structure......vit-j lwpc 175-group'')')
-   if (ign.eq.24) write(nsyso,'(/&                                                     
-   &  '' neutron group structure......SAND-IV 770-group'')')   
-   do ig=1,ngn
-      write(nsyso,'(1x,i5,2x,1p,e12.5,''  - '',e12.5)')&
-        ig,egn(ig),egn(ig+1)
-   enddo
+   if (ign.eq.24) write(nsyso,'(/&
+     &  '' neutron group structure......shem cea 281-group'')')
+   if (ign.eq.25) write(nsyso,'(/&
+     &  '' neutron group structure......shem epm 295-group'')')
+   if (ign.eq.26) write(nsyso,'(/&
+     &  '' neutron group structure......shem cea/epm 361-group'')')
+   if (ign.eq.27) write(nsyso,'(/&
+     &  '' neutron group structure......shem epm 315-group'')')
+   if (ign.eq.28) write(nsyso,'(/&
+     &  '' neutron group structure......rahab aecl 89-group'')')
+   if (ign.eq.29) write(nsyso,'(/&
+     &  '' neutron group structure......ccfe 660-group'')')
+   if (ign.eq.30) write(nsyso,'(/&
+     &  '' neutron group structure......ukaea 1025-group'')')
+   if (ign.eq.31) write(nsyso,'(/&
+     &  '' neutron group structure......ukaea 1067-group'')')
+   if (ign.eq.32) write(nsyso,'(/&
+     &  '' neutron group structure......ukaea 1102-group'')')
+   if (ign.eq.33) write(nsyso,'(/&
+     &  '' neutron group structure......ukaea 142-group'')')
+   if (ign.eq.99) write(nsyso,'(/&                                                     
+     &  '' neutron group structure......SAND-IV 770-group'')')   
+   if (ign.ne.-1) then
+      do ig=1,ngn
+         write(nsyso,'(1x,i5,2x,1p,e12.5,''  - '',e12.5)')&
+           ig,egn(ig),egn(ig+1)
+      enddo
+   endif
    return
    end subroutine gengpn
 
-   subroutine gengpg
+   subroutine gengpg(igg,ngg,egg)
    !-------------------------------------------------------------------
    ! Generate requested gamma group structure or read in from
    ! the system input file in the form of an ENDF list record
@@ -4554,6 +4581,9 @@ contains
    !-------------------------------------------------------------------
    use mainio ! provides nsyso
    use util   ! provides error
+   ! externals
+   integer::igg,ngg
+   real(kr),dimension(:),allocatable::egg
    ! internals
    integer::ngp,ig
    real(kr),dimension(95),parameter::eg2=(/&
@@ -6608,7 +6638,6 @@ contains
          enddo
          if (jfs.lt.0) then
             write(strng,'("can''t find mf,mt,izar,lfs = ",3i9,i5)')&
-
                                        mf,mt,izar,lfs
             call error('getsig',strng,' ')
          endif
@@ -9422,8 +9451,8 @@ contains
          if (lidp.eq.0) sigc=(eta**2/wn**2)/(1-wqp)**2
          if (lidp.eq.1) sigc=((2*eta**2/wn**2)&
            /(1-wqp**2))*((1+wqp**2)/(1-wqp**2)&
-           +(-1**i2s)*cos(eta*log((1+wqp)/(1-wqp)))/(2*spi+1))
-         if (lidp.eq.0) prob=prob/(1-wqp)
+           +((-1)**i2s)*cos(eta*log((1+wqp)/(1-wqp)))/(2*spi+1))
+           if (lidp.eq.0) prob=prob/(1-wqp)
          if (lidp.eq.1) prob=prob/(1-wqp*wqp)
          prob=prob+sigc
       endif
