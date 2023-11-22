@@ -283,6 +283,10 @@ program njoy
       SNL_enhanced_input_format = -1
       write (nsyso,'(''Old style control logic inputs:'')')
    endif
+   if ( run_title(1:7) .eq. "'moder'" ) then
+      SNL_enhanced_input_format = -1
+      write (nsyso,'(''Old style control logic inputs:'')')
+    endif
 
    do jk = 1, 2 
      if ( imode(jk) .ne. 0) then 

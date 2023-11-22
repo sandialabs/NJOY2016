@@ -144,7 +144,7 @@ contains
    !    matd     material to be processed
    !    tempd    temperature desired (kelvin) (default=300)
    ! card 6
-   !    newfor   use new cummulative angle distributions,
+   !    newfor   use new cumulative angle distributions,
    !               law 61, and outgoing particle distributions.
    !               (0=no, 1=yes, default=1)
    !    iopp     detailed photons (0=no, 1=yes, default=1)
@@ -174,15 +174,15 @@ contains
    !    matd     material to be processed
    !    tempd    temperature desired (kelvin) (default=300)
    !    tname    thermal zaid name ( 6 char max, def=za)
+   !    nza      number of moderator component za values (default=3, max=16)
    ! card 8a
-   !    iza01    moderator component za value
-   !    iza02    moderator component za value (def=0)
-   !    iza03    moderator component za value (def=0)
+   !    iza      moderator component za values (up to a maximum of 16 values,
+   !             must be terminated by /)
    ! card 9
    !    mti      mt for thermal incoherent data
    !    nbint    number of bins for incoherent scattering
    !    mte      mt for thermal elastic data
-   !    ielas    0/1=coherent/incoherent elastic
+   !    ielas    0/1/2=coherent elastic/incoherent elastic/mixed elastic
    !    nmix     number of atom types in mixed moderator
    !             (default=1, not mixed)
    !             (example, 2 for beo or c6h6)
@@ -231,10 +231,11 @@ contains
    use acepa ! provides acepho,phofix
    use acepn ! provides acephn,phnfix
    use acedo ! provides acedos,dosfix
+   use acecm ! provides the xss array
 
    ! internals
    integer::nendf,npend,ngend,nace,ndir
-   integer::iopt,iprint,itype,nxtra
+   integer::iopt,iprint,itype,nxtra,nza
    integer::matd
    real(kr)::tempd
    integer::newfor,iopp,ismooth
@@ -245,7 +246,6 @@ contains
    integer::izn(16)
    real(kr)::awn(16)
    character(6)::tname,tscr
-   integer::iza01,iza02,iza03
    integer::mti,nbint,mte,ielas,nmix,iwt
    real(kr)::emax
    real(kr)::time,zaid
@@ -360,24 +360,41 @@ contains
    else if (iopt.eq.2) then
       tempd=300
       tscr=' '
-      read(nsysi,*) matd,tempd,tscr
+      nza=3
+      read(nsysi,*) matd,tempd,tscr,nza
       nch=0
       do i=1,6
          if (tscr(i:i).ne.' ') nch=i
       enddo
       tname='      '
       if (nch.gt.0) tname(7-nch:6)=tscr(1:nch)
-      iza02=0
-      iza03=0
-      read(nsysi,*) iza01,iza02,iza03
       write(nsyso,'(&
         &'' mat to be processed .................. '',i10/&
         &'' temperature .......................... '',1p,e10.3/&
-        &'' thermal name ......................... '',4x,a6/&
-        &'' iza01 ................................ '',i10/&
-        &'' iza02 ................................ '',i10/&
-        &'' iza03 ................................ '',i10)')&
-        matd,tempd,tname,iza01,iza02,iza03
+        &'' thermal name ......................... '',4x,a6)')&
+        matd,tempd,tname
+      if (nza.lt.1.or.nza.gt.16) then
+         call error('acer','between 1 and 16 za value must be given.',' ')
+      endif
+      do i=1,nza
+         izn(i)=0
+      enddo
+      read(nsysi,*) (izn(i),i=1,nza)
+      do i=nza,1,-1
+         if (izn(i).ne.zero) then
+            nza=i
+            exit
+         endif
+      enddo
+      write(nsyso,'(&
+        &'' number moderator component za values . '',i10/&
+        &'' iza   ................................ '',i10/&
+        &(40x,i10))') nza,(izn(i),i=1,nza)
+      do i=1,nza
+         if (izn(i).le.zero) then
+            call error('acer','found invalid za numbers in izn.',' ')
+         endif
+      enddo
       mti=0
       nbint=0
       mte=0
@@ -418,6 +435,10 @@ contains
       call error('acer','illegal iopt.',' ')
    endif
 
+   !--allocate xss array
+   allocate(xss(nxss))
+   xss=0
+
    !--prepare fast ace data
    if (iopt.eq.1) then
       call acetop(nendf,npend,ngend,nace,ndir,iprint,itype,mcnpx,suff,&
@@ -426,7 +447,6 @@ contains
    !--prepare thermal ace data
    else if (iopt.eq.2) then
       call acesix(npend,nace,ndir,matd,tempd,tname,suff,hk,izn,awn,&
-        iza01,iza02,iza03,&
         mti,nbint,mte,ielas,nmix,emax,iwt,iprint,mcnpx)
 
    !--prepare dosimetry data
@@ -496,6 +516,9 @@ contains
       endif
    endif
 
+   !--deallocate xss array
+   deallocate(xss)
+
    !--acer is finished.
    call timer(time)
    write(nsyso,'(/69x,f8.1,''s''/&
@@ -504,4 +527,3 @@ contains
    end subroutine acer
 
 end module acem
-
