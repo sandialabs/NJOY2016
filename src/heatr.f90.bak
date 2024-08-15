@@ -157,9 +157,9 @@ contains
    !    qbar      tab1 record giving qbar versus e (1000 words max)
    !
    !-------------------------------------------------------------------
-   use mainio  ! provides nsysi,nsyso
-   use util    ! provides timer,openz,error,mess,repoz,closz
-   use endf    ! provides endf routines and variables
+   use mainio ! provides nsysi,nsyso
+   use util   ! provides timer,openz,error,mess,repoz,closz
+   use endf   ! provides endf routines and variables
    use physics ! provides amassn,amu,ev,clight
    use snl     ! provides SNL
    ! internals
@@ -311,7 +311,7 @@ contains
         &'' damage displacement energy ...........    default'')')
    else
       write(nsyso,'(&
-        &'' damage displacement energy ........... '',f11.2,&
+        &'' damage displacement energy ........... '',f10.1,&
         &'' ev'')') break
    endif
    displace_th = break_new
@@ -712,6 +712,7 @@ contains
    call contio(nendf,0,0,c(1),nb,nw)
    n6=n2h
    call contio(nendf,0,0,c(1),nb,nw)
+   nx=0
    if (n1h.ne.0) then
       iverf=4
       nx=n6
@@ -863,7 +864,13 @@ contains
          ifc4=0
          ifc5=0
          ifc6=0
-         call listio(nendf,0,0,scr,nb,nw)
+         l=1
+         call listio(nendf,0,0,scr(l),nb,nw)
+         l=l+nw
+         do while (nb.ne.0)
+            call moreio(nendf,0,0,scr(l),nb,nw)
+            l=l+nw
+         enddo
          nply=nint(scr(4))
          if (lfc.eq.0) then
             allocate(cpoly(0:nply))
@@ -878,14 +885,14 @@ contains
          ! correction.
          write(nsyso,'(/,&
            &'' fission energy components''/)')
-         c458(1:18)=scr(7:24)
+         c458(1:18)=scr(7:24)    ! scr is a list record
          if (lfc.eq.0) then      ! thermal point or polynomial
             qdel=c458(5)+c458(9)+c458(11) ! delayed fission Q at 0 eV
             if (nply.ge.1) then
                c458(19:36)=scr(25:42)
                if (nply.gt.1) then
                   do n=2,nply
-                     if (nmod.ne.7.or.lrel.ne.1) then
+                     if (nmod.ne.7.or.lrel.ne.1) then ! endf/b-vii.1 correction
                         efix=1
                      else
                         efix=mevev**(n-1)
@@ -912,7 +919,7 @@ contains
             qdel=0
             do i=1,nfc
                l=1
-               call tab1io(nendf,0,0,scr,nb,nw)
+               call tab1io(nendf,0,0,scr(l),nb,nw)
                do while (nb.ne.0)
                   l=l+nw
                   call moreio(nendf,0,0,scr(l),nb,nw)
@@ -938,17 +945,17 @@ contains
                   anp(1:nl)=scr(1:nl)
                else if (ifc.eq.3) then ! END is tabulated
                   ifc3=1
-                  qdel=qdel+scr(7)
+                  qdel=qdel+scr(6+2*n1h+2)
                else if (ifc.eq.4) then ! EGP is tabulated
                   ifc4=1
                   allocate(agp(1:nl))
                   agp(1:nl)=scr(1:nl)
                else if (ifc.eq.5) then ! EGD is tabulated
                   ifc5=1
-                  qdel=qdel+scr(7)
+                  qdel=qdel+scr(6+2*n1h+2)
                else if (ifc.eq.6) then ! EB is tabulated
                   ifc6=1
-                  qdel=qdel+scr(7)
+                  qdel=qdel+scr(6+2*n1h+2)
                endif
             enddo
             if (ifc3.eq.0) qdel=qdel+c458(5)
@@ -1029,9 +1036,16 @@ contains
             awrr=c2h+1
             ielem=mod(nint(c1h),1000)
             do ik=1,nk
-               call tab1io(nendf,nend6,0,scr,nb,nw)
+               l=1
+               call tab1io(nendf,nend6,0,scr(l),nb,nw)
+               l=l+nw
+               do while (nb.ne.0)
+                  call moreio(nendf,nend6,0,scr(l),nb,nw)
+                  l=l+nw
+               enddo
                nr=n1h
                zap=c1h
+               law=l2h
                if (nint(zap).eq.0) then
                   i6p=i6p+1
                   mt6yp(i6p)=mth
@@ -1072,10 +1086,6 @@ contains
                   mt6no(ii6)=nk
                endif
                if (zap.eq.zero) mgam=10+mod(mgam,10)
-               law=l2h
-               do while (nb.ne.0)
-                  call moreio(nendf,nend6,0,scr,nb,nw)
-               enddo
                if (law.eq.6) then
                   call contio(nendf,nend6,0,scr,nb,nw)
                else if (law.eq.1.or.law.eq.2.or.law.eq.5) then
@@ -1617,7 +1627,7 @@ contains
    endif
 
    if (e.lt.thresh) go to 290
-   call gety1(e,enext,idis,y,nin,b)
+   call gety1(e,enext,idis,y,nin,b) ! y is the reaction cross section
    ! check for energy-dependent q
    if (iimt.gt.0) then
       if (qa(iimt).ge.qtest) then
@@ -3059,7 +3069,13 @@ contains
       call contio(itape,0,0,a,nb,nw)
       lnu=nint(a(4))
       if (mth.eq.455) then
-         call listio(itape,0,0,a,nb,nw)
+         loc=1
+         call listio(itape,0,0,a(loc),nb,nw)
+         loc=loc+nw
+         do while (nb.ne.0)
+            call moreio(itape,0,0,a(loc),nb,nw)
+            loc=loc+nw
+         enddo
          lnd=nint(a(5))
          if (lnd.ne.6.and.lnd.ne.8)&
            call error('hgtyld','illegal lnd, must be 6 or 8',' ')
@@ -3095,8 +3111,15 @@ contains
             nr=nint(a(5))
             enext=a(7+2*nr)
          else
-            call listio(itape,0,0,a,nb,nw)
+            loc=1
+            call listio(itape,0,0,a(loc),nb,nw)
+            loc=loc+nw
             na=nw
+            do while (nb.ne.0)
+               call moreio(itape,0,0,a(loc),nb,nw)
+               loc=loc+nw
+               na=na+nw
+            enddo
             enext=emax
          endif
       endif
@@ -3358,6 +3381,7 @@ contains
    real(kr)::photon_count
 
    !--initialize.
+   nbt=0
    if (law.gt.0.and.law.ne.1.and.law.ne.5)&
      call error('tabbar','coded for lf=1 and lf=5 only.',' ')
    if (law.ge.0) then
@@ -3394,8 +3418,8 @@ contains
 
       if (law.gt.0.and.i.gt.nbt) then
          ir=ir+1
-         nbt=nint(a(ibase+2*ir-1))
-         inn=nint(a(ibase+2*ir))
+         nbt=nint(a(6+2*ir-1))
+         inn=nint(a(6+2*ir))
       endif
       if (xl.ne.xh) then
 
@@ -3555,6 +3579,11 @@ contains
    do while (ik.lt.irec-1)
       ik=ik+1
       call tab1io(nin,0,0,c(l),nb,nw)
+      l=l+nw
+      do while (nb.ne.0)
+         call moreio(nin,0,0,c(l),nb,nw)
+         l=l+nw
+      enddo
       law=l2h
       call skip6(nin,0,0,c(l),law)
    enddo
@@ -3580,6 +3609,17 @@ contains
       call moreio(nin,0,0,c(l),nb,nw)
       l=l+nw
    enddo
+   zap=c1h
+   awp=c2h
+   law=l2h
+
+   !--error for awp=0. for non photons
+   if (zap.ne.0.and.awp.eq.0) then
+     write(strng,'(''awp is zero for for mt'',i3,'' particle '',i5)')&
+       mth,nint(zap)
+     call error('sixbar',strng,' ')
+   endif
+
    iflag=0
    disc102=0
    if (zap.eq.zero) then
@@ -4145,7 +4185,7 @@ contains
    fl=0
    do i=1,nep
       l=7+ncyc*(i-1)
-      xx=c(l)
+      xx=abs(c(l))
       yy=c(l+1)
       x2=xx
       if (irec.eq.0) then
@@ -4849,6 +4889,7 @@ contains
    !--select desired discrete line
    inow=7+(i-1)*ncnow
    epnext=cnow(inow)
+   t=0.
 
    !--legendre coefficients
    if (lang.eq.1) then
@@ -5067,44 +5108,28 @@ contains
    return
    end function h6psp
 
-   subroutine tabsq6(e_incident, g,h,a,law,z,awr)
+   subroutine tabsq6(g,h,a,law,z,awr,e,yld)
    !-------------------------------------------------------------------
    ! Compute average of photon recoil energy from capture and
    ! corresponding damage energy for File 6 capture photons
    !-------------------------------------------------------------------
    use endf ! provides terp1
-   use mainio  ! provides nsysi,nsyso
-   use snl     ! provides SNL
    ! externals
    integer::law
-   real(kr)::g,h,a(*),z,awr
-   real(kr):: e_incident
+   real(kr)::g,h,a(*),z,awr,e,yld(*)
    ! internals
-   integer::nd,np,ncyc,ibase,inn,nc,i,j
-   real(kr)::ein,rein,x,y,xr,awc,xh,yh,xl,yl,dx,s
-   real(kr):: g_prime, h_prime, max_intensity, xr_prime
+   integer::nd,np,ncyc,ibase,inn,nc,i,j,ip,ir,idis
+   real(kr)::ein,rein,x,y,xr,awc,xh,yh,xl,yl,dx,s,yield,enext
    integer,parameter::nq=4
-   integer:: ichange_flag
-   real(kr):: total_discrete_gamma_energy, total_continuum_gamma_energy, total_gamma_energy
-   real(kr):: partial_sum, discrete_sum, s_discrete, s_continuum
-   real(kr):: g_prime_discrete, h_prime_discrete, g_prime_continuum, h_prime_continuum
    real(kr),dimension(nq),parameter::qp=(/&
      -.86114e0_kr,-.33998e0_kr,.33998e0_kr,.86114e0_kr/)
    real(kr),dimension(nq),parameter::qw=(/&
      .34785e0_kr,.65215e0_kr,.65215e0_kr,.34785e0_kr/)
-   data ichange_flag /0/
-
-   if (imode(3) .lt. 0) then
-     write (nsyso,2301) g, h, a(1), law, z, awr, pe_archive, pe_store
-2301 format (1x, 'TABSQ6 entry ', 3g14.7, i6, 4g14.7)
-   endif
 
    !--initialize
    ein=2*tm
    rein=1/ein
    g=0
-   g_prime = 0
-   h_prime = 0
    h=0
    s=0
    nd=nint(a(3))
@@ -5113,56 +5138,23 @@ contains
    ibase=6
    inn=2
 
+   !--interpolate the photon yield
+   ip=2
+   ir=1
+   call terpa(yield,e,enext,idis,yld(1),ip,ir)
+
    !--accumulate contributions from discrete levels
-   total_gamma_energy = 0.0
-   total_discrete_gamma_energy = 0.0
-   total_continuum_gamma_energy = 0.0
    if (nd.ne.0) then
-
-!    precompute discrete intensity sum and maximum intensity
-     discrete_sum = 0.0
-     max_intensity = 0.0
-     do i = 1,nd
-       discrete_sum = discrete_sum + a(ibase+ncyc*(i-1)+2)
-       max_intensity = max(max_intensity,a(ibase+ncyc*(i-1)+2))
-     enddo
-
       do i=1,nd
          x=a(ibase+ncyc*(i-1)+1)
          y=a(ibase+ncyc*(i-1)+2)
          xr=x*x*rein
-         xr_prime = xr
-!       
-!        over-ride xr to include base capture recoil energy
-!        xr_prime = xr + e_incident/(awr+1.)
-!
          g=g+xr*y
-         g_prime = g_prime + xr_prime*y
          awc=awr+1
          h=h+df(xr,z,awc,z,awr)*y
-         h_prime = h_prime + df(xr_prime,z,awc,z,awr)*y
          s=s+y
-
-         if (imode(3) .lt. 0) then
-           write (nsyso,2306) i, x, y, xr, rein, g, h, s, g_prime, h_prime, discrete_sum,  &
-              max_intensity, pe_archive, pe_store
-2306       format (1x, 'TABSQ6 discrete level entry ', i5, 13g14.7)
-         endif
-         total_discrete_gamma_energy = total_discrete_gamma_energy + x*y
-
       enddo
    endif
-
-   if (imode(3) .lt. 0) then
-     write (nsyso,2303) g, h, s, total_discrete_gamma_energy, nd, np
-2303 format (1x, 'TABSQ6 discrete level sum ', 4g14.7, 2i6)
-   endif
-   g_prime_discrete = g_prime
-   h_prime_discrete = h_prime
-   s_discrete = s
-   g_prime_continuum = 0.0
-   h_prime_continuum = 0.0
-   s_continuum = 0.0
 
    !--accumulate contributions from continuum
    if (np.gt.nd) then
@@ -5175,7 +5167,6 @@ contains
          xh=a(ibase+ncyc*(i-1)+1)
          yl=yh
          yh=a(ibase+ncyc*(i-1)+2)
-         partial_sum = 0.0
          if (xl.ne.xh) then
             dx=xh-xl
             do j=1,nq
@@ -5184,90 +5175,15 @@ contains
                xr=x*x*rein
                g=g+qw(j)*xr*dx*y
                h=h+qw(j)*df(xr,z,awr+1,z,awr)*dx*y
-
-!              Note: proper g_prime may not be computed by baseline appraoch.
-!                    Tally discrete and continuum g/h contributions separately
-!                      since they scale slightly differently.
-
-               xr_prime = xr
-!       
-!              over-ride xr to include base capture recoil energy
-!              xr_prime = xr + e_incident/(awr+1.)
-!
-               g_prime = g_prime + qw(j)*xr_prime*dx*y
-               h_prime = h_prime + qw(j)*df(xr_prime,z,awr+1,z,awr)*dx*y
-
-               g_prime_continuum = g_prime_continuum + qw(j)*xr_prime*dx*y
-               h_prime_continuum = h_prime_continuum + qw(j)*df(xr_prime,z,awr+1,z,awr)*dx*y
-
-               s_continuum=s_continuum+qw(j)*dx*y
-
                s=s+qw(j)*dx*y
-               partial_sum = partial_sum + qw(j)*dx*y
-
-               if (imode(3) .lt. 0 ) then
-!                   write (nsyso,8336) j, g, g_prime, g_prime_continuum, h, h_prime, & 
-!                        h_prime_continuum, qw(j), xr, xr_prime, &
-!                        dx, y, s, s_continuum
-8336               format (1x, 'TABSQ6 continuum level g/h_prime/continuum loop ', i5, 13g14.7)
-               endif
-
             enddo
-            total_continuum_gamma_energy = total_continuum_gamma_energy + partial_sum
          endif
-
-         if (imode(3) .lt. 0 ) then
-            write (nsyso,2336) i, xl, xh, yl, yh, g, g_prime, g_prime_continuum, h, h_prime, & 
-                  h_prime_continuum, s, &
-                  total_continuum_gamma_energy, partial_sum
-2336        format (1x, 'TABSQ6 continuum level entry ', i5, 13g14.7)
-         endif
-
       enddo
-   endif
-   
-   total_gamma_energy = total_discrete_gamma_energy + total_continuum_gamma_energy
-   if (imode(3) .lt. 0) then
-     write (nsyso,2304) g, g_prime, h, h_prime, s, total_gamma_energy, nc
-2304 format (1x, 'TABSQ6 discrete+continuum level sum ', 6g14.7, i6)
-     write (nsyso, 2314) g_prime_discrete, h_prime_discrete, g_prime_continuum, h_prime_continuum, s, &
-        s_discrete, s_continuum, pe_archive
-2314 format (1x, 'TABSQ6 altered sum: ', 8g14.7)
    endif
 
    !--finished
-   g=g/s
-   g_prime = g_prime_discrete*pe_archive + g_prime_continuum*pe_archive/s
-!   g_prime = g_prime_discrete*pe_archive + g_prime_continuum
-   h=h/s
-   h_prime = h_prime_discrete*pe_archive + h_prime_continuum*pe_archive/s
-!   h_prime = h_prime_discrete*pe_archive + h_prime_continuum
-
-   if (imode(3) .lt. 0 .and. ichange_flag .lt. 10) then
-     write (nsyso,8702) ichange_flag, g_prime_discrete*pe_archive, g_prime_continuum*pe_archive/s, &
-         h_prime_discrete*pe_archive, &
-         h_prime_continuum*pe_archive/s, s, pe_archive
-8702 format (1x, 'Note: TABSQ6 disc/cont partition of recoil and damage energies: ', i6, 9g14.7)
-   endif
-
-!  code modifications to correct multiphoton MF6 kerma calculation
-!  change by PJG 9/19/2020
-
-   if (imode(3) .lt. 0 .and. ichange_flag .lt. 10) then
-     ichange_flag = ichange_flag + 1
-     write (nsyso,2702) ichange_flag, g, g_prime, h, h_prime, s, pe_archive, pe_store, xr, xr_prime
-2702 format (1x, 'Warning: code modification taking affect for neutron kerma ', i6, 9g14.7)
-   endif
-   g = g_prime
-   h = h_prime
-
-!  end code modification section
-
-   if (imode(3) .lt. 0) then
-     write (nsyso,2302) g, g_prime, h, h_prime, s, xr, xr_prime
-2302 format (1x, 'TABSQ6 exit ', 9g14.7)
-   endif
-
+   g=yield*g/s
+   h=yield*h/s
    return
    end subroutine tabsq6
 
@@ -5814,7 +5730,13 @@ contains
    lg=l2h
    g=1
    l2flg=1
-   call listio(nin,0,0,scr,nb,nw)
+   l=1
+   call listio(nin,0,0,scr(l),nb,nw)
+   l=l+nw
+   do while (nb.ne.0)
+      call moreio(nin,0,0,scr(l),nb,nw)
+      l=l+nw
+   enddo
 
    !--set base value for mt0
    if (mth.ge.51.and.mth.le.91.and.mt0.ne.49) mt0=49
@@ -6182,6 +6104,7 @@ contains
    e=0
    dame=df(e,z,awr,z,awr)
    mgam=2
+   hk=0
   100 continue
    call contio(nscr,0,0,scr,nb,nw)
    if (mfh.eq.12) mgam=1
@@ -6840,8 +6763,8 @@ contains
       yh=a(ibase+2*i)
       if (i.gt.nbt) then
          ir=ir+1
-         nbt=nint(a(ibase+2*ir-1))
-         inn=nint(a(ibase+2*ir))
+         nbt=nint(a(6+2*ir-1))
+         inn=nint(a(6+2*ir))
       endif
       if (xl.ne.xh) then
          dx=xh-xl
@@ -6949,6 +6872,7 @@ contains
    endif
 
    !--construct tab1 records for the kerma factors
+   n=0
    nscr=15
    if (nout.lt.0) nscr=-nscr
    call openz(nscr,1)

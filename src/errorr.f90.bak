@@ -11775,6 +11775,12 @@ contains
    !-- finished with all relevant mf's for this material ...
    !   -  write material end record on the condensed GENDF tape
    call amend(nscr5,0)
+   if ( nmt1 .ne. 0) then
+     write(nsyso,'(/'' SNL WARNING: ngchk null out multiple materials'' &
+  &                 , 2i5)') nmt1
+     goto 1900
+   endif
+
 
    if (nmt1.ne.0) then
    !-- rewind the input GENDF tape
