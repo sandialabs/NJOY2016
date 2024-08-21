@@ -1,6 +1,7 @@
 module acedo
    ! provides ace dosimetry formats for acer
    use locale
+   use acecm, only: xss,nxss
    implicit none
    private
 
@@ -24,10 +25,6 @@ module acedo
 
    ! parameters for dosimetry jxs block
    integer::lone,jxs2,mtr,jxs4,jxs5,lsig,sigd,jxsd(14),end,jxsd2(10)
-
-   ! main ace container array
-   integer,parameter::nxss=4999000
-   real(kr)::xss(nxss)
 
 contains
 
@@ -61,6 +58,7 @@ contains
    jxs4=0
    jxs5=0
    jxsd2=0
+   xss=0
 
    !--allocate scratch storage
    nwscr=250000
@@ -336,7 +334,7 @@ contains
       read(nin,'(8i9)')&
         len2,za,nxs3,ntr,nxsd(1:12),&
         lone,jxs2,mtr,jxs4,jxs5,lsig,sigd,jxsd(1:14),end,jxsd2(1:10)
-      n=(lone+3)/4
+      n=(len2+3)/4
       l=0
       do i=1,n
          read (nin,'(4e20.0)') (xss(l+j),j=1,4)
@@ -484,7 +482,8 @@ contains
    !-------------------------------------------------------------------
    ! Write out the dosimetry file.
    !-------------------------------------------------------------------
-   use util ! provides openz,closz
+   use util  ! provides openz,closz,error
+   use acecm ! provides write routines
    ! externals
    integer::itype,nout,ndir,mcnpx
    integer::izn(16)
@@ -626,4 +625,3 @@ contains
    end subroutine typen
 
 end module acedo
-
