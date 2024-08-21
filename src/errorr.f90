@@ -94,11 +94,7 @@ module errorm
    real(kr),dimension(:),allocatable::cflx
    real(kr),dimension(:,:),allocatable::csig
 
-   integer,parameter::ngmax=2501 ! max number groups in union grid
-   integer,parameter::lomax=10   ! max legendre order
-   real(kr),dimension(:,:),allocatable::plele
-
-   real(kr)::u1lele(10)
+   real(kr)::u1lele(10),plele(2501,10)
    integer::nr,nbt(20),jnt(20)
 
    ! globals for resonance processing
@@ -325,23 +321,8 @@ contains
    !      15           sand-iia 640-group structure
    !      16           vitamin-e 174-group structure
    !      17           vitamin-j 175-group structure
-   !      18           xmas nea-lanl
-   !      19           ecco  33-group structure
-   !      20           ecco 1968-group structure
-   !      21           tripoli 315-group structure
-   !      22           xmas lwpc 172-group structure
-   !      23           vit-j lwpc 175-group structure
-   !      24           shem cea 281-group structure
-   !      25           shem epm 295-group structure
-   !      26           shem cea/epm 361-group structure
-   !      27           shem epm 315-group structure
-   !      28           rahab aecl 89-group structure
-   !      29           ccfe   660-group structure  (30 MeV)
-   !      30           ukaea 1025-group structure  (30 MeV)
-   !      31           ukaea 1067-group structure (200 MeV)
-   !      32           ukaea 1102-group structure   (1 GeV)
-   !      33           ukaea  142-group structure (200 MeV)
-   !      34           lanl 618-group structure
+   !      18           xmas 172-group structure
+   !      19           read in, supplemented with endf covariance grid
    !
    !      iwt          meaning
    !      ---          -------
@@ -366,7 +347,7 @@ contains
    use physics ! provides amassn, amu, ev, hbar
    ! internals
    integer::i,icov,nb,nw,mprint,nwi,nx,ndictm,nwl,ix,l
-   integer::mf,mt,neki,j,k,ii1,ii2,ii3,ii4
+   integer::mf,mfi,mt,neki,j,k,ii1,ii2,ii3,ii4
    integer::lim,ii,ntape,nek1,idone,iadd,nwscr
    integer::ng,ngp,iwtt,iw,np,nr
    integer::mat,nfissp,is
@@ -500,11 +481,6 @@ contains
                  'switching to default, iwt=6')
       iwt=6
    endif
-   if (ign.eq.19) then
-      call mess ('errorr','neutron group structure option 19 has been ',&
-                 'changed, you may want to use -1 instead')
-      iwt=6
-   endif
    mprint=0
    tempin=300
    read(nsysi,*) mprint,tempin   ! ***Card 3 ... now required***
@@ -535,21 +511,16 @@ contains
       mfcov=33
       irespr=1
       legord=1
-      ifissp=-1000
+      ifissp=-1
       isru=0
       dap=0
       read(nsysi,*) iread,mfcov,irespr,legord,ifissp,efmean,dap
-      if (mfcov.eq.35.and.ifissp.eq.-1000) ifissp=-1
-      if (mfcov.eq.34.and.ifissp.eq.-1000) ifissp=1
 
       !--only allow legord=1 at this time
-      if (mfcov.eq.34.and.legord.lt.0) then
-         write(strng,'(''Legendre order l for mf34 cannot be less than zero'')')
-         call error('errorr',strng,' ')
-      endif
-      if (mfcov.eq.34.and.ifissp.lt.0) then
-         write(strng,'(''Legendre order l1 for mf34 cannot be less than zero'')')
-         call error('errorr',strng,' ')
+      if (legord.ne.1) then
+         write(strng,'(''reset legord from '',i2,'' to 1'')')legord
+         call mess('errorr',strng,'')
+         legord=1
       endif
 
       !--input check for legal and/or consistent options
@@ -706,12 +677,8 @@ contains
         '('' irespr processing option for mf=33 ... '',i10)') irespr
       if (isru.ne.0) write(nsyso,&
         '('' user dap for scat radius unc override '',f11.4)') dap
-      if (mfcov.eq.34) then
-        write(nsyso,&
-        '('' legendre order l for mf=34 ........... '',i10)') legord
-        write(nsyso,&
-        '('' legendre order l1 for mf=34 .......... '',i10)') ifissp
-      endif
+      if (mfcov.eq.34) write(nsyso,&
+        '('' legendre order for mf=34 ............. '',i10)') legord
       if (mfcov.eq.35) then
          write(nsyso,&
            '('' igflag ............................... '',i10/&
@@ -733,7 +700,7 @@ contains
    !--read covariance reaction types from end/b dictionary
    !--and set file 32 flag
    nscr2=0
-   nwi=40000
+   nwi=4000
    allocate(dict(nwi))
    call repoz(nendf)
    call tpidio(nendf,0,0,dict,nb,nw)
@@ -825,8 +792,6 @@ contains
             if (mmtres(i).eq.106) mmtres(i)=750
             if (mmtres(i).eq.107) mmtres(i)=800
          enddo
-      else
-         call desammy
       endif
       call findf(matd,2,0,nendf)
       deallocate(a)
@@ -962,7 +927,7 @@ contains
       write(strng,'(''no data on file for mfcov='',i3)') mfcov
       call mess('errorr',strng,'processing terminated')
       !--skip remaining errorr input (if any)
-      if (abs(ign).eq.1) then
+      if (ign.eq.1.or.ign.eq.19) then
          read(nsysi,*) ng
          ngp=ng+1
          read(nsysi,*) (dmy,i=1,ngp)
@@ -1026,7 +991,7 @@ contains
 
    ntape=-10 !careful ... must match ngout (grpav) and ntp (colaps)!
    call openz(ntape,1)
-   call egngpn(ign,ngn,egn)
+   call egngpn
 
    !--if an mfcov=34 job, check various mf4 and mf34 flags to see
    !  whether a gendf tape is required.
@@ -1079,7 +1044,6 @@ contains
    !--errorr is finished.
    call atend(nout,0)
   330 continue
-   if (nmtres.ne.0) call desammy
    if (allocated(flx))  deallocate(flx)
    if (allocated(sig))  deallocate(sig)
    if (allocated(cov))  deallocate(cov)
@@ -1898,10 +1862,10 @@ contains
    integer::jh,loci,lt,lb,locip4,locip6,nk1,k,k2,locnec,nl1
    integer::ifloc,nlt,nk,nlt1,locl,lend,loclp4,loclp6
    integer::l2,m,m2,jgend,ih,ibase,ij,kmtb,isrrr,namx
-   integer::mat2,mt2,nlg1,nlg2,ld,ld1,izap,izero,ifoundmf34
+   integer::mat2,mt2,nlg1,nlg2,ld,ld1,izap,izero
    real(kr)::eg,xcv,time,de,flux,dne
    character(70)::strng,strng2
-   integer,parameter::locm=100
+   integer,parameter::locm=30
    integer::loc(locm)
    real(kr),dimension(:),allocatable::sig1,scr2,scr
    real(kr),dimension(:),allocatable::alp1,alp2
@@ -1911,7 +1875,6 @@ contains
    real(kr),parameter::zero=0
 
    !--initialize
-   ifoundmf34=0
    izero=0
    nscr2=13
    if (ngout.lt.0) nscr2=-nscr2
@@ -2091,15 +2054,13 @@ contains
          mt1=mt2
          ld=l1h
          ld1=l2h
-         nc=0
-         ni=n2h
       else
          mat1=l1h
          mt1=l2h
-         nc=n1h
-         ni=n2h
       endif
       if (mt1.eq.0) call error('covcal','illegal mt1=0.',' ')
+      nc=n1h
+      ni=n2h
    endif
    if (ni.gt.locm) call error('covcal','storage exceeded in loc.',' ')
    iok=1
@@ -2179,8 +2140,7 @@ contains
   320 continue
    if (iok.eq.0) go to 600
    if (mfcov.eq.34) then
-      if (.not.(ld.eq.legord.and.ld1.eq.ifissp)) go to 650
-      ifoundmf34=1
+      if (ld.gt.legord.or.ld1.gt.legord) go to 650
    endif
 
    !--retrieve sigma for mt1, either from ngout or sig.
@@ -2492,12 +2452,6 @@ contains
   660 continue
    call asend(0,nscr1)
 
-   !--check if we found the MF34 l,l1 sub-subsection
-   if (mfcov.eq.34.and.ifoundmf34.eq.0) then
-      write(strng,'(''no sub-subsection for l='',i2,'' and l1='',i2)') legord,ifissp
-      call error('covcal',strng,'in mf=34.')
-   endif
-
    !--close loop over sections of mfcov
    go to 140
   700 continue
@@ -2550,6 +2504,8 @@ contains
    ! internals
    integer::isym,lb,ibase,ne,ne1,i,j,is
    real(kr)::sumt
+   character(66)::c
+   real(kr)::b(17)
    real(kr),dimension(:),allocatable::rcs,spc
    real(kr),parameter::stst=1.0e-5_kr
    real(kr),parameter::sml=1.0e-30_kr
@@ -2652,16 +2608,14 @@ contains
    real(kr)::covm(*),spc(ne1)
    ! internals
    character(60)::strng
+   character(66)::c
    integer,parameter::nnw=10000
-   integer::mtt,mf56,nk
+   integer::mtt,mf56,mat,mf,mt,nk
    integer::i,nb,nw,k,lf,nr1,nr2,np1,np2,ib,ib2,iloop,ibx,nr12,np12
    integer::ir,ip,idis,izap,law,lang,lep,ib2x,na,nep,indx1,nnk,nd
-   real(kr)::esp,pe,enext,elow,ehigh,aaa
+   real(kr)::c1,c2,esp,pe,enext,elow,ehigh,aaa
    real(kr),dimension(:),allocatable::scr3
-   real(kr),dimension(:),allocatable::b
-
-   allocate(b(nnw))
-   b=0.
+   real(kr)::b(nnw)
 
    !--allocate scratch storage and initialize the spectrum
    !--integral array
@@ -2923,9 +2877,6 @@ contains
 
    mtd=iabs(mti)
    if (mfd.gt.1) go to 200
-   do i=1,100
-      mtsig0(i)=0
-   end do
 
    !--copy rest of this mat to a scratch file.
    call repoz(nscr2)
@@ -3363,6 +3314,7 @@ contains
       enddo
    enddo
    call closz(nscr6)
+   if (nmtres.gt.0) call desammy
 
    return
    end subroutine resprx
@@ -3387,12 +3339,12 @@ contains
    integer::nsrs,nlrs,njsx,nparb,idis,lord
    integer::i,nb,nw
    integer::isrrr
-   real(kr)::el,eh,spin,ap,awri,aw,fact,rat,frac
-   real(kr)::e,enext,wt,wtl,elo,ehi,ee,eel,tmp
+   real(kr)::el,eh,spin,ap,awri,aw,fact,en,rat,frac
+   real(kr)::e,enext,wt,wtl,elo,ehi,enxt,ee,eel,tmp
    integer,parameter::nodmax=30000
-   real(kr),dimension(:),allocatable::enode
+   real(kr)::enode(nodmax)
    integer,parameter::maxb=90000
-   real(kr),dimension(:),allocatable::b
+   real(kr)::b(maxb)
 
    real(kr),dimension(:),allocatable::sdev
    real(kr),dimension(:,:),allocatable::cov
@@ -3410,12 +3362,6 @@ contains
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::zero=0
    real(kr),parameter::ten=10
-
-   allocate(enode(nodmax))
-   allocate(b(maxb))
-   enode=0.
-   b=0.
-   l3=1
 
    !--read in the resonance parameters for computing cross sections
    isrrr=1
@@ -3843,8 +3789,6 @@ contains
    !--clean up allocated arrays
    deallocate(sens)
    deallocate(cov)
-   deallocate(enode)
-   deallocate(b)
 
    return
    end subroutine rpxsamm
@@ -3868,11 +3812,8 @@ contains
    real(kr)::awri,aw,sum,den,fl,ajmax,aj
    real(kr)::er,rho,ser,per,corr,ebc,e1,ekp
    real(kr)::er1,er2,er3,er4,er5,er6,s
-   real(kr),dimension(:,:),allocatable::sig
-   real(kr),dimension(:,:,:),allocatable::gsig
-   real(kr)::sig1(4)
-   real(kr),dimension(:,:,:),allocatable::sens
-   real(kr)::cov(5,5)
+   real(kr)::sig(maxe,5),gsig(4,2501,6),sig1(4)
+   real(kr)::sens(4,6,2501),cov(5,5)
    real(kr)::ag(6),aa(3),aa2(3)
    character(60)::strng1,strng2
    logical::lneger
@@ -3881,13 +3822,6 @@ contains
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::half=0.5e0_kr
    real(kr),parameter::zero=0
-
-   allocate(sig(maxe,5))
-   allocate(gsig(4,ngmax,6))
-   allocate(sens(4,6,ngmax))
-   sig=0.
-   gsig=0.
-   sens=0.
 
    lneger=.false.
 
@@ -4216,10 +4150,6 @@ contains
    !--end of do loops
    ifresr=1
 
-   deallocate(sig)
-   deallocate(gsig)
-   deallocate(sens)
-
    return
    end subroutine rpxlc0
 
@@ -4245,13 +4175,11 @@ contains
    real(kr)::awri,aw,eres,ajres,backdt,backdt2,backdt3,ajres2
    real(kr)::eres2,gwidth,rho,rr,rr2,ser,per,tmp
    real(kr)::dap2
-   real(kr),dimension(:),allocatable::b
-   real(kr),dimension(:,:),allocatable::sigr
-   real(kr),dimension(:,:),allocatable::sigp
-   real(kr),dimension(:,:),allocatable::gsig
-   real(kr),dimension(:,:,:),allocatable::sens
-   real(kr),dimension(:,:),allocatable::cov
-   real(kr),dimension(:),allocatable::pneorg
+   real(kr)::b(maxb)
+   real(kr)::sigr(maxe,5),sigp(maxe,5),gsig(4,2501)
+   real(kr)::sens(4,mxnpar,2501)
+   real(kr)::cov(mxnpar,mxnpar)
+   real(kr)::pneorg(10000)
    real(kr)::time
    integer::llmat(5)
    character(60)::strng1,strng2
@@ -4259,21 +4187,6 @@ contains
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::zero=0
-
-   allocate(b(maxb))
-   allocate(sigr(maxe,5))
-   allocate(sigp(maxe,5))
-   allocate(gsig(4,ngmax))
-   allocate(sens(4,mxnpar,ngmax))
-   allocate(cov(mxnpar,mxnpar))
-   allocate(pneorg(10000))
-   b=0.
-   sigr=0.
-   sigp=0.
-   gsig=0.
-   sens=0.
-   cov=0.
-   pneorg=0.
 
    !--general resolved resonance subsection formats (lcomp=1)
    !--compact resolved resonance subsection formats (lcomp=2)
@@ -4737,15 +4650,6 @@ contains
       enddo
    endif
    ifresr=1
-
-   deallocate(b)
-   deallocate(sigr)
-   deallocate(sigp)
-   deallocate(gsig)
-   deallocate(sens)
-   deallocate(cov)
-   deallocate(pneorg)
-
    return
    end subroutine rpxlc12
 
@@ -4761,8 +4665,8 @@ contains
    real(kr)::cov(mxnpar,mxnpar),a(nwscr)
    ! internals
    integer::nb,nw,i1,i2,nind,lbg,l1,l2,l3,n1,n2,n3
-   integer::nn1,nn2,nnn,nx,nn2p,nm,m,ii,mm,mmm,ndigit,mbase
-   integer,dimension(6)::mpid=(/0,0,0,0,0,0/)
+   integer::nn1,nn2,nnn,nx,nn2p,nm,i,m,ii,mm,mmm,ndigit,mbase
+   integer,dimension(6)::mpid
    integer,dimension(6),parameter::mpidbw=(/1,4,5,6,0,0/)
    integer,dimension(6),parameter::mpidrm=(/1,3,4,5,6,0/)
    real(kr)::aw,awri,fd,std1,std2
@@ -4771,6 +4675,7 @@ contains
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::half=0.5e0_kr
+   real(kr),parameter::zero=0
 
    if (lrf.eq.1.or.lrf.eq.2) then
       mpid=mpidbw
@@ -4910,32 +4815,18 @@ contains
    integer::mxlru2,iest,ieed,nwscr
    real(kr)::a(nwscr),amur(3,mxlru2)
    ! internals
-   integer::nb,nw,l1,l2,l3,nl,ig,i,j,ig2,ii,igind,njs,inow
+   integer::nb,nw,l,l1,l2,l3,nl,ig,i,j,ig2,ii,igind,iscr,njs,inow
    integer::loop,loopn,l0
    integer,parameter::maxb=4000
    integer,parameter::mxnpar=100
    integer,parameter::maxe=600000
    real(kr)::e1,ebc,sfac,s,tmp,bb
-   real(kr)::sig1(4)
-   real(kr),dimension(:,:),allocatable::sig
-   real(kr),dimension(:,:),allocatable::gsigr
-   real(kr),dimension(:,:),allocatable::gsigp
-   real(kr),dimension(:,:),allocatable::cov
-   real(kr),dimension(:,:,:),allocatable::sens
+   real(kr)::sig(maxe,5),sig1(4)
+   real(kr)::gsigr(4,2501),gsigp(4,2501)
+   real(kr)::sens(4,mxnpar,2501),cov(mxnpar,mxnpar)
    real(kr)::b(maxb)
    character(60)::strng2
    real(kr),parameter::zero=0
-
-   allocate(sig(maxe,5))
-   allocate(gsigr(4,ngmax))
-   allocate(gsigp(4,ngmax))
-   allocate(cov(mxnpar,mxnpar))
-   allocate(sens(4,mxnpar,ngmax))
-   sig=0.
-   gsigr=0.
-   gsigp=0.
-   cov=0.
-   sens=0.
 
    write(*,*)'Unresolved resonance energy range.'
    l1=lptr
@@ -5121,11 +5012,6 @@ contains
 
    ifunrs=1
    write(*,*)'... ended.'
-   deallocate(sig)
-   deallocate(gsigr)
-   deallocate(gsigp)
-   deallocate(cov)
-   deallocate(sens)
 
    return
    end subroutine rpxunr
@@ -5350,13 +5236,14 @@ contains
    ! externals
    integer::igx,ipoint,nwscr
    integer,parameter::maxe=600000
-   real(kr)::egn(*),sig(maxe,5),gsig(4,ngmax),a(nwscr)
+   real(kr)::egn(*),sig(maxe,5),gsig(4,2501),a(nwscr)
    !internals
    integer::k,i,i0,ig,lord,idis,j
    real(kr)::sumde,x1,enext,wt1,wt2,de,ebb,ebx,coef,egnt,egnt1
    real(kr)::wt12,wt3,wtr,x2,xr,y1,xx,xl,x12,y2,y3,yr,yl,z1,z2,z3,zr,zl,wtl
    real(kr),parameter::half=0.5e0_kr
    real(kr),parameter::two=2
+   real(kr),parameter::three=3
    real(kr),parameter::six=6
    real(kr),parameter::zero=0
 
@@ -5556,8 +5443,8 @@ contains
    ! externals
    integer::mprint
    ! internals
-   integer::nwds,nb,nw,i,il,ig2lo,ig,imt,iz,j,ng2,idis,m
-   integer::n,n1,n2,n3,n4,nz,ntw,nng,ngg,nmu
+   integer::nwds,nb,ne,nw,i,il,ig2lo,ig,imt,iz,j,ng2,idis,m
+   integer::ngrp,n,n1,n2,n3,n4,nz,ntw,nng,nngr,ngg,nmu
    real(kr)::sec,etop,ehi,e,enext,elo,thresh,time
    real(kr)::dele,emu,els
    real(kr)::ans(10,2),z(26),flux(10,10),al(10)
@@ -5568,13 +5455,10 @@ contains
    character(66)::text
    character(60)::strng
    real(kr),parameter::eps=1.e-9_kr
+   real(kr),parameter::big=1.e10_kr
    real(kr),parameter::elow=1.e-5_kr
    real(kr),parameter::zero=0
    real(kr),parameter::oneeps=0.99999999_kr
-
-   ! allocate storage
-   allocate(plele(ngmax,lomax))
-   plele=0.
 
    !--initialize
    if (iread.eq.2) call error('grpav4',&
@@ -5713,6 +5597,7 @@ contains
       endif
 
       !--loop over union energy groups
+  200 continue
       n=1
       mfd=3
       mtd=iga(imt)
@@ -5788,11 +5673,7 @@ contains
          z(6)=ig
          z(7)=ans(1,1)
          do i=1,legord
-           if (ans(i,2).lt.1e-30) then
-             z(i+7)=0.
-           else
-             z(i+7)=ans(i,2)
-           endif
+            z(i+7)=ans(i,2)
          enddo
          nwds=legord+7
          call listio(0,nscr4,0,z,nb,nwds)
@@ -6024,7 +5905,7 @@ contains
    real(kr)::csig(ncg,ncm),cflx(ncg),b(*),egt(nun+1)
    real(kr)::flux(nun),sig(nun+1),alp(nun)
    ! internal
-   integer::i,mt,nun1,ig,jg,ij,ibase,ip,ld,nb,nw,ngn1,ix,loc,np,nwds
+   integer::i,mat,mf,mt,nun1,ig,jg,ij,ibase,ip,ld,nb,nw,ngn1,ix,loc,np,nwds
    integer::ngnp1,izero
    real(kr)::abit,sss0
    real(kr)::c(6)
@@ -6188,6 +6069,7 @@ contains
    return
    end subroutine rdlgnd
 
+
    subroutine fssigc(ncg,ncm,nun,csig,cflx,b,egt,flux,sig)
    !--------------------------------------------------------------------
    ! Calculate the coarse group fission spectrum chi.
@@ -6304,6 +6186,13 @@ contains
    do ig=1,ngn
       c(1)=csig(ig,1)
       write(nsyso,'(i5,1p,6e12.4)') ig,egn(ig),cflx(ig),c(1)
+
+      xsc(ig) = c(1)
+    ! for covariance of a spectrum - convert dn/dE into a number fraction
+      if ( mt .eq. 261) then
+        xsc(ig) = c(1)*cflx(ig)
+      endif
+
    enddo
    if (nout.ne.0) call afend(nout,0)
 
@@ -6662,6 +6551,7 @@ contains
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
    real(kr),parameter::half=0.5e0_kr
+   real(kr),parameter::zero=0
 
    !--initialize
    do i=1,4
@@ -6934,6 +6824,7 @@ contains
    real(kr),parameter::rc1=.123e0_kr
    real(kr),parameter::rc2=.08e0_kr
    real(kr),parameter::third=0.333333333e0_kr
+   real(kr),parameter::zero=0
 
    !--initialize
    do i=2,4
@@ -6944,9 +6835,6 @@ contains
    nls=nint(a(5))
    nlru2=0
    inow=7
-   vl=0.
-   ps=0.
-   spot=0.
 
    !--do loop over all l states
    do l=1,nls
@@ -7184,17 +7072,6 @@ contains
 
    !--allocate storage.
    nmts=nmt1
-   nmt1d=nmt1
-   nm=0
-   mt1old=0
-   mt1lst=0
-   ldlst=-1
-   ldold=-1
-   iyp=0
-   iy=0
-   nmt1h=0
-   ld0=0
-   nmd=0
    nwds=10000000
    nngn=ngn*(ngn+1)/2
    ngn2=ngn*ngn
@@ -7579,7 +7456,7 @@ contains
   390 continue
 
    ! add contribution from resonance-parameter uncertainty
-   if (mfcov.eq.33.and.mf32.ne.0) then
+   if (mfcov.ne.34.and.mfcov.ne.35) then
       call rescon(ix,ixp,csig,cova,izero,ngn,nmt1)
    endif
 
@@ -7910,7 +7787,6 @@ contains
    if (allocated(alsig)) deallocate(alsig)
    if (allocated(clflx)) deallocate(clflx)
    if (allocated(crr)) deallocate(crr)
-   if (allocated(plele)) deallocate(plele)
    if (nout.eq.0) return
    call afend(nout,0)
    call amend(nout,0)
@@ -8200,7 +8076,6 @@ contains
    if (mf32.eq.0) return
    igmin=0
    igmax=0
-   gno=0
 
    !--initialize
    call repoz(nendf)
@@ -8587,7 +8462,6 @@ contains
             call efacphi(l,rhoc,phi2)
 
             !--correction of penetrability for reduced neutron width
-            !--gno only gets initialised for l=0,1,2
             if (l.eq.0) then
                gno=gnox*sqrt(em)
             else if (l.eq.1) then
@@ -9282,13 +9156,6 @@ contains
    nun1=nunion+1
    call repoz(ngout)
    call repoz(ntp)
-   er=0.
-   ea3=0
-   flxa=0.
-   xnua=0.
-   siga=0.
-   ea1=0.
-   ea2=0.
 
    !--test that ngout is really a groupr output tape
    !--then set scratch space based on problem dependent variables
@@ -9870,55 +9737,36 @@ contains
    return
    end subroutine epanel
 
-   subroutine egngpn(ign,ngn,egn)
-   !-------------------------------------------------------------------
+   subroutine egngpn
+   !--------------------------------------------------------------------
    ! Generate requested neutron group structure or read in from
-   ! the system input file in the form of an ENDF list record
+   ! the system input file in the form of an ENDF list record.
    !
    !    ign     meaning
    !    ---     ---------------------------------------
-   ! abs(1)     arbitrary structure (read in)
-   !     2      CSEWG 239 group structure
-   !     3      LANL 30 group structure
-   !     4      ANL 27 group structure
-   !     5      RRD 50 group structure
-   !     6      GAM-I 68 group structure
-   !     7      GAM-II 100 group structure
-   !     8      LASER-THERMOS 35 group
-   !     9      EPRI-CPM/WIMS 69 group structure
-   !    10      LANL 187-group structure
-   !    11      LANL 70-group structure
-   !    12      SAND-II 620-group structure
-   !    13      LANL 80-group structure
-   !    14      EURLIB 100-group structure
-   !    15      SAND-IIA 640-group structure
-   !    16      VITAMIN-E 174-group structure
-   !    17      VITAMIN-J 175-group structure
-   !    18      XMAS 172-group structure
-   !    19      ECCO  33-group structure
-   !    20      ECCO 1968-group structure
-   !    21      TRIPOLI 315-group structure
-   !    22      XMASLWC 172-group structure
-   !    23      VIT-J lwpc 175-group structure
-   !    24      SHEM CEA 281-group structure
-   !    25      SHEM EPM 295-group structure
-   !    26      SHEM CEA/EPM 361-group structure
-   !    27      SHEM EPM 315-group structure
-   !    28      RAHAB AECL 89-group structure
-   !    29      CCFE   660-group structure
-   !    30      UKAEA 1025-group structure
-   !    31      UKAEA 1067-group structure
-   !    32      UKAEA 1102-group structure
-   !    33      UKAEA  142-group structure
-   !    34      LANL 618-group structure
+   !     1      arbitrary structure (read in)
+   !     2      csewg 239 group structure
+   !     3      lanl 30 group structure
+   !     4      anl 27 group structure
+   !     5      rrd 50 group structure
+   !     6      gam-i 68 group structure
+   !     7      gam-ii 100 group structure
+   !     8      laser-thermos 35 group
+   !     9      epri-cpm 69 group structure
+   !    10      lanl 187-group structure
+   !    11      lanl 70-group structure
+   !    12      sand-ii 620-group structure
+   !    13      lanl 80-group structure
+   !    14      eurlib 100-group structure
+   !    15      sand-iia 640-group structure
+   !    16      vitamin-e 174-group structure
+   !    17      vitamin-j 175-group structure
+   !    18      xmas 172-group structure
+   !    19      read in, supplemented with endf covariance grid
    !
-   !-------------------------------------------------------------------
-   use mainio ! provides nsyso
-   use util   ! provides error
-   use groupm ! provides gengpn
-   ! externals
-   integer::ign,ngn
-   real(kr),dimension(:),allocatable::egn
+   !--------------------------------------------------------------------
+   use mainio ! provides nsysi,nsyso,nsyse
+   use util ! provides error,sigfig
    ! internals
    integer::lflag,ngp,i,ig,n1,n2,n,ic
    real(kr)::u,du,delta,ew,ewmin
@@ -10445,11 +10293,11 @@ contains
 
    !--prepare union of users grid with endf covariance grid.
    ngp=ngn+1
-   do ig=1,ngp
-      egn(ig)=sigfig(egn(ig),ndig,0)
+   do i=1,ngp
+      egn(i)=sigfig(egn(i),ndig,0)
    enddo
    call uniong(nendf)
-   if (ign.eq.-1) then
+   if (ign.eq.19) then
       write(nsyso,'(/&
         &'' union structure (= user structure) has'',i5,&
         &'' groups''/)') nunion
@@ -11554,14 +11402,15 @@ contains
    use endf   ! provides endf routines and variables
 
    character(70)::strng
-   integer::i,i1,i2,ig,ii,iloop,j,k,kk,lenscrl,lgscr,mloop
+   integer::i,i1,i2,ig,ii,iloop,j,jj,k,kk,lenscrl,lgscr,mloop
    integer::mftest
+   integer::ngmode
    integer::ns0,ntw,nng,ngg,nwl,newnwl
    integer::nl,nlnew,nz,nznew,lrflag,ng,ng2,mfnow
    integer::nt,ntwds
    integer::matds,nb,nbsave,nw,nwsave
    real(kr),dimension(17)::t
-   real(kr),dimension(6)::c1
+   real(kr),dimension(6)::c1,c2
    real(kr),dimension(:),allocatable::gscr,scr1,scrl
    integer,dimension(:),allocatable::matsofar
 
@@ -11587,7 +11436,7 @@ contains
    iloop=iloop+1
    call contio(ngout,0,0,c1,nb,nw)
    if (iloop.eq.1.and.nint(c1(5)).ne.-1) then
-      write(strng,'("ngout = ",i2," is not a gendf tape")')ngout
+      write(strng,'("ngout = ",i2," is not a gendf tape, c1(5)= ", i5)')ngout, nint(c1(5))
       call error('ngchk',strng,'')
    endif
    if (math.eq.-1) then
@@ -11775,6 +11624,12 @@ contains
    !-- finished with all relevant mf's for this material ...
    !   -  write material end record on the condensed GENDF tape
    call amend(nscr5,0)
+   if ( nmt1 .ne. 0) then
+     write(nsyso,'(/'' SNL WARNING: ngchk null out multiple materials'' &
+  &                 , 2i5)') nmt1
+     goto 1900
+   endif
+
 
    if (nmt1.ne.0) then
    !-- rewind the input GENDF tape
@@ -11794,6 +11649,7 @@ contains
          goto 100
       endif
    endif
+ 1900 continue
 
    !-- all done ...
    !   - restore original matd
@@ -11815,3 +11671,4 @@ contains
    end subroutine ngchk
 
 end module errorm
+

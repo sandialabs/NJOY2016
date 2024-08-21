@@ -8,7 +8,7 @@ module thermm
    ! global variables
    integer::nendf,nin,nout,nscr,nscr2
    integer::matde,nbin,iprint,ncds,matdp,natom,ntemp,&
-     iinc,iform,ncdse
+     iinc,iform,mtref,ncdse
    real(kr)::za,awr,tol,emax
    real(kr)::sb,az,tevz,teff,sb2,az2,teff2
    real(kr)::cliq
@@ -145,7 +145,7 @@ contains
    use endf   ! provides endf routines and variables
    use util   ! provides timer,error,openz,repoz,loada,skiprz,closz
    ! locals
-   integer::icoh,i,icopy,idis,nb,nw,iold,inew,indexc,indexi,mtref
+   integer::icoh,i,icopy,idis,nb,nw,iold,inew
    integer::iverp,itemp,nwb,it,ntape,nex,ne,np,isave
    integer::lthr
    real(kr)::e,enext,emaxs,time,sz2,t,templ,s,temp
@@ -172,8 +172,6 @@ contains
    allocate(bufn(nbuf))
    allocate(bufo(nbuf))
    scr=0
-   indexc=-1
-   indexi=-1
 
    !--read user input.
    read(nsysi,*) nendf,nin,nout
@@ -286,11 +284,6 @@ contains
    endif
    write(nsyso,'(/'' endf uses endf-'',i1,'' format'')') iverf
 
-   !--verify if nendf != 0 for iinc == 2
-   if (nendf.eq.0.and.iinc.eq.2) then
-      call error('thermr','No ENDF tape given for iinc=2 (nendf is 0)',' ')
-   endif
-
    !--initialize i/o units
    iold=10
    inew=11
@@ -402,7 +395,6 @@ contains
    call skiprz(nin,-1)
 
    !--set up for elastic calculation
-   lthr=0
    if (iverf.ge.6.and.nendf.ne.0) then
       call findf(matde,7,0,nendf)
       call contio(nendf,0,0,scr,nb,nw)
@@ -410,7 +402,7 @@ contains
          lthr=l1h
          icoh=10*lthr
          temp=tempr(itemp)
-         call rdelas(temp,lthr,nendf,nwb,indexc,indexi)
+         call rdelas(temp,lthr,nendf,nwb)
       endif
    endif
 
@@ -421,21 +413,18 @@ contains
       teff2=0
       if (sz2.gt.zero) teff2=eftmp2(itemp)
       if (iinc.eq.2) temp=t
-      call calcem(temp,itemp,iold,inew,np,nex,mtref)
+      call calcem(temp,itemp,iold,inew,np,nex)
    endif
 
    !--compute thermal elastic cross sections
-   if (icoh.gt.0.and.icoh.le.10) then        ! only coherent
-      call coh(icoh,itemp,iold,inew,np,nex,mtref+1,indexc)
-   else if (icoh.gt.10.and.icoh.le.20) then  ! only incoherent
-      call iel(icoh,itemp,iold,inew,np,nex,mtref+1,indexi)
-   else if (icoh.gt.20) then                 ! both coherent and incoherent
-     call coh(10,itemp,iold,inew,np,nex,mtref+1,indexc)
-     call iel(20,itemp,iold,inew,np,nex,mtref+2,indexi)
+   if (icoh.gt.0.and.icoh.le.10) then
+      call coh(icoh,itemp,iold,inew,np,nex)
+   else if (icoh.gt.10) then
+      call iel(icoh,itemp,iold,inew,np,nex)
    endif
 
    !--write new pendf tape.
-   call tpend(iold,itemp,np,nex,icoh,icopy,mtref)
+   call tpend(iold,itemp,np,nex,icoh,icopy)
 
    !--continue temperature loop
    if (allocated(fl)) deallocate(fl)
@@ -474,35 +463,31 @@ contains
    return
    end subroutine thermr
 
-   subroutine rdelas(temp,lthr,nin,nwds,indexc,indexi)
+   subroutine rdelas(temp,lthr,nin,nwds)
    !-------------------------------------------------------------------
-   ! Read in elastic data (coherent or incoherent or both) for the
+   ! Read in elastic data (coherent or incoherent) for the
    ! desired temperature from an ENDF6 format file.
    !-------------------------------------------------------------------
    use util ! provides error
    use endf ! provides endf routines and variables
    ! externals
-   integer::lthr,nin,nwds,indexc,indexi
+   integer::lthr,nin,nwds
    real(kr)::temp
    ! internals
-   integer::l,np,nr,lt,nb,nw,k,i,j,ifound
+   integer::l,np,nr,lt,nb,nw,k,i
    real(kr)::tnow
    real(kr),dimension(:),allocatable::a
-   integer,parameter::na=1000000
+   integer,parameter::na=10000
 
    !--temp storage to read in data
    allocate(a(na))
 
-   !--initialise
-   ifound=0
-   indexc=-1
-   indexi=-1
-
-   !--read the first table in MF7 MT2
-   !  this is S(E) for the first temperature for coherent or mixed mode
-   !  this is W'(T) for incoherent
+   !--read in main record
    l=1
    call tab1io(nin,0,0,a(l),nb,nw)
+   np=n2h
+   nr=n1h
+   lt=l1h
    l=l+nw
    do while (nb.ne.0)
       call moreio(nin,0,0,a(l),nb,nw)
@@ -510,79 +495,34 @@ contains
       if (l.gt.na) call error('rdelas',&
         'too much elastic data','increase na')
    enddo
-
-   !--get table parameters
-   np=n2h
-   nr=n1h
-   lt=l1h
-
-   !--current size of the array
    nwds=l-1
-
-   !--read temperatures for coherent elastic or mixed mode
    if (lthr.ne.2) then
-
-      !--set coherent data index
-      indexc=1
-
-      !--current temperature
       tnow=a(1)
 
-      !--loop over the available temperatures and find the one we need
-      do j=1,lt
-
-         !--read list of S values for this temperature
+      !--search for desired temperature
+      do while (abs(tnow-temp).ge.temp/1000+5)
+         if (lt.eq.0.or.tnow.gt.temp)&
+           call error('rdelas','desired temp not found.',' ')
+         lt=lt-1
          l=nwds+1
          call listio(nin,0,0,a(l),nb,nw)
+         tnow=a(l)
          l=l+nw
          do while (nb.ne.0)
             call moreio(nin,0,0,a(l),nb,nw)
             l=l+nw
          enddo
-
-         !--verify if this is the one we need and store S(E) if it is
-         tnow=a(nwds+1)
-         if (abs(tnow-temp).lt.temp/1000+5) then
-            ifound=1
-            l=nwds+6
-            k=6+2*nr
-            do i=1,np
-               l=l+1
-               k=k+2
-               a(k)=a(l)
-            enddo
-         endif
+         l=nwds+6
+         k=6+2*nr
+         do i=1,np
+            l=l+1
+            k=k+2
+            a(k)=a(l)
+         enddo
       enddo
-   endif
-
-   !--set index for incoherent only
-   if (lthr.eq.2) then
-
-      !--set incoherent data index
-      indexi=1
-
-   !--read the W'(T) data for mixed mode
-   else if (lthr.eq.3) then
-
-      !--set incoherent data index
-      indexi=nwds+1
-
-      l=indexi
-      call tab1io(nin,0,0,a(l),nb,nw)
-      l=l+nw
-      do while (nb.ne.0)
-         call moreio(nin,0,0,a(l),nb,nw)
-         l=l+nw
-         if (l.gt.na) call error('rdelas',&
-           'too much elastic data','increase na')
-      enddo
-      nwds=l-1
    endif
 
    !--move data to global fl array
-   !--lthr=1: fl is a single table of S(E) for coherent elastic
-   !--lthr=2: fl is a single table of W'(T) for incoherent elastic
-   !--lthr=3: fl is a table of S(E) and a table of W'(T) for mixed mode
    allocate(fl(nwds))
    do l=1,nwds
       fl(l)=a(l)
@@ -636,7 +576,7 @@ contains
      1064.e0_kr,700.e0_kr,749.69e0_kr,&
      1064.e0_kr,800.e0_kr,843.63e0_kr,&
      1064.e0_kr,1000.e0_kr,1035.e0_kr,&
-     1064.e0_kr,1200.e0_kr,1229.3e0_kr,&
+     1064.e0_kr,1220.e0_kr,1229.3e0_kr,&
      1065.e0_kr,296.0e0_kr,713.39e0_kr,&
      1065.e0_kr,400.0e0_kr,754.68e0_kr,&
      1065.e0_kr,500.0e0_kr,806.67e0_kr,&
@@ -745,7 +685,7 @@ contains
    return
    end subroutine gatef2
 
-   subroutine coh(lat,itemp,iold,inew,ne,nex,mtref,index)
+   subroutine coh(lat,itemp,iold,inew,ne,nex)
    !-------------------------------------------------------------------
    ! Compute the coherent scattering cross sections for a crystalline
    ! material.  The cross section is computed on an energy grid
@@ -755,7 +695,7 @@ contains
    use endf ! provides endf routines and variables
    use util ! provieds error,finda,loada
    ! externals
-   integer::lat,itemp,iold,inew,ne,nex,mtref,index
+   integer::lat,itemp,iold,inew,ne,nex
    ! internals
    integer::nl,imax,nx,nj,i,nlt,nlt1,nb,nw,nbragg
    integer::ix,j,iex,il,isave,ltt
@@ -787,7 +727,7 @@ contains
    !--store the cross sections in a scratch file.
    nbragg=nl
    e=0
-   call sigcoh(e,enext,s,nbragg,lat,temp,emax,natom,index)
+   call sigcoh(e,enext,s,nbragg,lat,temp,emax,natom)
    ix=1
    j=0
    iex=0
@@ -809,7 +749,7 @@ contains
    if (ix.lt.nlt) go to 100
    ! prime stack with first bragg edge
    e=enext
-   call sigcoh(e,enext,s,nl,lat,temp,emax,natom,index)
+   call sigcoh(e,enext,s,nl,lat,temp,emax,natom)
    stk(1,1)=e
    do il=1,nl
       stk(1+il,1)=s(il)
@@ -818,7 +758,7 @@ contains
    ! add next bragg edge to stack
   120 continue
    e=enext
-   call sigcoh(e,enext,s,nl,lat,temp,emax,natom,index)
+   call sigcoh(e,enext,s,nl,lat,temp,emax,natom)
    call upstk(e,s,nl,nx,i,stk)
    ! make sure input grid points are included
   125 continue
@@ -829,7 +769,7 @@ contains
   135 continue
    if (x(ix).ge.stk(1,i-1)*(1-small)) go to 140
    e=x(ix)
-   call sigcoh(e,en,s,nl,lat,temp,emax,natom,index)
+   call sigcoh(e,en,s,nl,lat,temp,emax,natom)
    call upstk(e,s,nl,nx,i,stk)
    ! compare linear approximation to true function.
   140 continue
@@ -837,7 +777,7 @@ contains
    xm=half*(stk(1,i-1)+stk(1,i))
    xm=sigfig(xm,7,0)
    if (stk(1,i-1)-stk(1,i).lt.eps*xm) go to 160
-   call sigcoh(xm,en,s,nl,lat,temp,emax,natom,index)
+   call sigcoh(xm,en,s,nl,lat,temp,emax,natom)
    do 150 il=1,nl
    call terp1(stk(1,i),stk(1+il,i),&
      stk(1,i-1),stk(1+il,i-1),xm,ym,2)
@@ -899,7 +839,7 @@ contains
    b(6)=0
    math=matdp
    mfh=6
-   mth=mtref
+   mth=mtref+1
    call contio(0,0,nscr,b,nb,nw)
    b(1)=1
    b(2)=1
@@ -944,7 +884,7 @@ contains
    return
    end subroutine upstk
 
-   subroutine sigcoh(e,enext,s,nl,lat,temp,emax,natom,index)
+   subroutine sigcoh(e,enext,s,nl,lat,temp,emax,natom)
    !-------------------------------------------------------------------
    ! Compute the first nl Legendre components of the coherent scatter-
    ! ing at energy e from lattice type lat.  Here enext is the next
@@ -962,11 +902,11 @@ contains
    use util    ! provides error,sigfig
    use mathm   ! provides legndr
    ! externals
-   integer::nl,lat,natom,index
+   integer::nl,lat,natom
    real(kr)::e,enext,s(*),temp,emax
    ! internals
    integer::nord,nw,k
-   integer::i1m,i1,l1,i2m,i2,l2,i3m,i3,l3,nr,np
+   integer::i1m,i1,l1,i2m,i2,l2,i3m,i3,l3
    integer::l,i,imax,jmin,j,il,lmax,last
    real(kr)::amne,econ,tsqx,a,c,amsc,scoh,wal2,wint,x
    real(kr)::w1,w2,w3,tsq,tau,w,f,st,sf,blast,re
@@ -1044,7 +984,7 @@ contains
    wint=cw*amsc*wal2
    t2=hbar/(2*amu*amsc)
    ulim=econ*emax
-   nw=1000000
+   nw=10000
    allocate(wrk(nw))
 
    !--compute and sort lattice factors.
@@ -1148,20 +1088,17 @@ contains
 
    !--bragg parameters already read from endf6
   200 continue
-   !--fl(index) is the coherent S(E) table for the current temperature from ENDF6
-   nr=int(fl(index+4))  ! number of interpolation regions
-   np=int(fl(index+5))  ! number of points
-   k=np
-   nl=np
+   k=int(fl(6))
+   nl=k
    blast=0
    scon=1
-   enext=fl(index+2*nr+6)
+   enext=fl(9)
    enext=sigfig(enext,7,-1)
    do i=1,nl
-      l=index+2*(i-1)
-      fl(l)=fl(l+2*nr+6)*econ
-      fl(l+1)=fl(l+2*nr+7)-blast
-      blast=fl(l+2*nr+7)
+      l=1+2*(i-1)
+      fl(l)=fl(l+8)*econ
+      fl(l+1)=fl(l+9)-blast
+      blast=fl(l+9)
    enddo
    return
 
@@ -1241,7 +1178,7 @@ contains
    return
    end function form
 
-   subroutine iel(mat,itemp,iold,inew,ne,nex,mtref,index)
+   subroutine iel(mat,itemp,iold,inew,ne,nex)
    !-------------------------------------------------------------------
    ! Compute the elastic scattering from polyethylene or hydrogen
    ! in zirconium hydride using the incoherent approximation.
@@ -1253,7 +1190,7 @@ contains
    use endf   ! provides endf routines and variables
    use util   ! provides error,finda,loada
    ! externals
-   integer::mat,itemp,iold,inew,ne,nex,mtref,index
+   integer::mat,itemp,iold,inew,ne,nex
    ! internals
    integer::idis,iex,iet,iu,ix,nj,nr,np,ip,ir,ltt,nb,nw
    integer::n,nup,nup1,isave,nne
@@ -1296,25 +1233,24 @@ contains
       dwa=terp(tmp,dwz,8,temp,3)
       sb=c13a
    else if (mat.eq.20) then
-      !--fl(index) is the incoherent W'(T) table from ENDF6
-      sb=fl(index)
-      nr=int(fl(index+4))  ! number of interpolation regions
-      np=int(fl(index+5))  ! number of points
+      sb=fl(1)
+      nr=nint(fl(5))
+      np=nint(fl(6))
       if (np.eq.1) then
-         tt1=fl(index+2*nr+6)
+         tt1=fl(7+2*nr)
          if (abs(temp-tt1).gt.temp/10) call error('iel',&
            'bad temperature for debye-waller factor',' ')
-         dwa=fl(index+2*nr+7)
+         dwa=fl(8+2*nr)
       else
-         tt1=fl(index+2*nr+6)
-         ttn=fl(index+2*nr+2*np+4)
+         tt1=fl(7+2*nr)
+         ttn=fl(5+2*nr+2*np)
          if (temp.lt.dn*tt1.or.temp.gt.up*ttn) call error('iel',&
            'bad temperature for debye-waller factor',' ')
-         if (tt1.gt.temp) fl(index+2*nr+6)=temp
-         if (ttn.lt.temp) fl(index+2*nr+2*np+4)=temp
+         if (tt1.gt.temp) fl(7+2*nr)=temp
+         if (ttn.lt.temp) fl(5+2*nr+2*np)=temp
          ip=2
          ir=1
-         call terpa(dwa,temp,tnxt,idis,fl(index),ip,ir)
+         call terpa(dwa,temp,tnxt,idis,fl,ip,ir)
       endif
    else
       call error('iel','unknown material identifier.',' ')
@@ -1334,7 +1270,7 @@ contains
    ltt=6
    math=matdp
    mfh=6
-   mth=mtref
+   mth=mtref+1
    scr(1)=za
    scr(2)=awr
    scr(3)=0
@@ -1538,7 +1474,7 @@ contains
    return
    end function terp
 
-   subroutine calcem(temp,itemp,iold,inew,ne,nex,mtref)
+   subroutine calcem(temp,itemp,iold,inew,ne,nex)
    !-------------------------------------------------------------------
    ! Calculate incoherent inelastic scattering kernels from
    ! s(alpha,beta) in endf mf7 format or from analytic models
@@ -1557,7 +1493,7 @@ contains
    use util    ! provides error,repoz,sigfig
    use mathm   ! provides legndr
    ! externals
-   integer::itemp,iold,inew,ne,nex,mtref
+   integer::itemp,iold,inew,ne,nex
    real(kr)::temp
    ! internals
    character(len=60)::strng
@@ -1887,7 +1823,7 @@ contains
    beta(21)=100
    beta(22)=120
    beta(23)=140
-   beta(24)=160
+   beta(24)=160   
    beta(25)=180
    beta(26)=200
    beta(27)=250
@@ -2494,7 +2430,7 @@ contains
    ! internals
    integer::nb1,na1,i,ib,ia
    real(kr)::rtev,bb,a,sigc,b,c,bbb,s,s1,s2,s3,arg
-   real(kr)::tfff,tfff2
+   real(kr)::tfff,tfff2,rat
    real(kr),parameter::sigmin=1.e-10_kr
    real(kr),parameter::sabflg=-225.e0_kr
    real(kr),parameter::amin=1.e-6_kr
@@ -2995,7 +2931,7 @@ contains
    return
    end subroutine sigu
 
-   subroutine tpend(iold,itemp,ne,nex,icoh,icopy,mtref)
+   subroutine tpend(iold,itemp,ne,nex,icoh,icopy)
    !-------------------------------------------------------------------
    ! Write the output pendf tape.
    !-------------------------------------------------------------------
@@ -3003,7 +2939,7 @@ contains
    use endf   ! provides endf routines and variables
    use util   ! provides repoz,error,finda,timer,sigfig
    ! externals
-   integer::iold,itemp,ne,nex,icoh,icopy,mtref
+   integer::iold,itemp,ne,nex,icoh,icopy
    ! internals
    integer::i,matd,jcopy,n6,iverp,mf2,mfd,mtd
    integer::lim,ix,j,mti,mfi,mf,mt,mfn,mtn,mat
@@ -3071,7 +3007,6 @@ contains
    nw=6*nx
    if (iinc.gt.0) nw=nw+12
    if (icoh.gt.0) nw=nw+12
-   if (icoh.gt.20) nw=nw+12
    allocate(dicn(nw))
    allocate(sav(6))
    nc=nx
@@ -3385,3 +3320,4 @@ contains
    end subroutine tpend
 
 end module thermm
+

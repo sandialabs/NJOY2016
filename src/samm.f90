@@ -25,8 +25,8 @@ module samm
    logical::Want_Partial_U=.false.
 
    !--variables
-   integer::ngroup,mchan,nres,npp,ntriag,npar,lllmax,kkxlmn,nback
-   integer::nrext,nparr,nerm
+   integer::ngroup,mchan,nres,npp,ntriag,npar,lllmax,kkxlmn
+   integer::nrext,krext,nparr,nerm
    integer,dimension(12)::ngroupm,nppm,nresm
    integer,parameter::lllmaxx=10
    real(kr)::awr,su
@@ -36,11 +36,11 @@ module samm
    integer,dimension(:,:),allocatable::kza,kzb,ishift,lpent,mt
    real(kr),dimension(:,:),allocatable::pa,pb,sspin,parity
    integer,dimension(:,:),allocatable::nresg
-   integer,dimension(:,:,:),allocatable::ipp,lspin,backgr
-   real(kr),dimension(:,:,:,:),allocatable::backgrdata
+   integer,dimension(:,:,:),allocatable::ipp,lspin
    real(kr),dimension(:,:,:),allocatable::chspin,bound,rdeff,rdtru
    real(kr),dimension(:,:),allocatable::eres,gamgam
    real(kr),dimension(:,:,:),allocatable::gamma
+   real(kr),dimension(:,:,:,:),allocatable::parext
    integer,dimension(:,:),allocatable::nent,next
    real(kr),dimension(:,:),allocatable::goj
    real(kr),dimension(:,:,:),allocatable::zke,zkfe,zkte,zeta,echan
@@ -179,9 +179,8 @@ contains
    real(kr)::res(maxres)
    ! internals
    integer::jnow,nb,nw,lfw,nis,i,lru,lrf,nro,naps,mode,lrx,kf,ki
-   integer::nls,ner,j,ng,is,ll,iis,kchan,kpp,kres,kpar,jj,nrs,igroup,kback
+   integer::nls,ner,j,ng,is,ll,iis,kchan,kpp,kres,kpar,jj,nrs,igroup
    integer::nch,ich,iso,ier,ipp,kk,kki,kkf
-   integer::kbk,lbk
    real(kr)::spin,parity,parl,capj,capjmx,gamf,gamf2,el,e1,e2,gamx
    real(kr),dimension(2)::s
    real(kr),parameter::zero=0
@@ -206,11 +205,9 @@ contains
    npp=0
    mchan=0
    npar=0
-   nback=0
    kres=0
    kpp=0
    kchan=0
-   kback=0
 
    !--check for multiple isotopes
    if (nis.gt.1) then
@@ -514,27 +511,15 @@ contains
 
             !--loop over the spin groups
             kchan=0
-            kback=0
             kres=0
             kpar=0
             do igroup=1,ngroup
-
-               !--read particle pair information
                call listio(nin,0,0,res(jnow),nb,nw)
                jnow=jnow+nw
-               do while (nb.ne.0)
-                  call moreio(nin,0,0,res(jj),nb,nw)
-                  jj=jj+nw
-                  if (jj.gt.maxres) call error('s2sammy',&
-                    'res storage exceeded',' ')
-               enddo
-               kbk=l1h
                nch=n2h
                ich=nch-1
                nchan(igroup,ier)=ich
                if (ich.gt.kchan) kchan=ich
-
-               !--read resonance parameters
                call listio(nin,0,0,res(jnow),nb,nw)
                jj=jnow+nw
                do while (nb.ne.0)
@@ -546,51 +531,9 @@ contains
                nrs=nint(res(jnow+3))
                kpar=kpar+nrs*(ich+2)
                kres=kres+nrs
-
-               !--read background rmatrix elements
-               if (kbk.gt.0) then
-                  do i=1,kbk
-                     call contio(nin,0,0,res(jnow),nb,nw)
-                     lbk=l2h
-                     if (lbk.eq.1) then
-                        call tab1io(nin,0,0,res(jj),nb,nw)
-                        jj=jnow+nw
-                        do while (nb.ne.0)
-                           call moreio(nin,0,0,res(jj),nb,nw)
-                           jj=jj+nw
-                           if (jj.gt.maxres) call error('s2sammy',&
-                             'res storage exceeded',' ')
-                        enddo
-                        call tab1io(nin,0,0,res(jj),nb,nw)
-                        jj=jnow+nw
-                        do while (nb.ne.0)
-                           call moreio(nin,0,0,res(jj),nb,nw)
-                           jj=jj+nw
-                           if (jj.gt.maxres) call error('s2sammy',&
-                             'res storage exceeded',' ')
-                        enddo
-                        if ((jj-jnow+1).gt.kback) kback=jj-jnow+1
-                     else if (lbk.eq.2.or.lbk.eq.3) then
-                        call listio(nin,0,0,res(jj),nb,nw)
-                        jj=jnow+nw
-                        do while (nb.ne.0)
-                           call moreio(nin,0,0,res(jj),nb,nw)
-                           jj=jj+nw
-                           if (jj.gt.maxres) call error('s2sammy',&
-                             'res storage exceeded',' ')
-                        enddo
-                        if (lbk.eq.2) then
-                           if (7.gt.kback) kback=7
-                        else
-                           if (5.gt.kback) kback=5
-                        endif
-                     endif
-                  enddo
-               endif
             enddo
             if (kpar.gt.npar) npar=kpar
             if (kchan.gt.mchan) mchan=kchan
-            if (kback.gt.nback) nback=kback
             nresm(ier)=kres
             if (kres.gt.nres) nres=kres
          endif
@@ -610,6 +553,7 @@ contains
       lllmax=lllmaxx
       call allo
    endif
+   if (nmtres.eq.0) deallocate(nchan)
 
    return
    end subroutine s2sammy
@@ -628,10 +572,8 @@ contains
    real(kr)::el,eh,spin,ascat
    real(kr)::enode(nodmax),res(maxres)
    ! internals
-   character(80)::strng
    integer::nb,nw,nls,is,ng,ll,iis,i,ires,jj,nrs,llll,ig,igxm,lrx
    integer::j,ndig,kres,igroup,ichp1,ichan,ix,ich,ippx,igamma,l,nx,ires1
-   integer::kbk,lbk,lch,krm,ifg
    real(kr)::pari,parl,capj,capjmx,c,awri,apl,aptru,apeff,spinjj
    real(kr)::gamf,gamf2,s1,s2,hw,ehalf,ell,x,gamx,qx
    real(kr),dimension(:),allocatable::a
@@ -693,8 +635,6 @@ contains
          do j=1,ngroupm(ier)
             lspin(i,j,ier)=0
             chspin(i,j,ier)=0
-            backgr(i,j,ier)=0
-            backgrdata(i,igroup,ier,:)=0
          enddo
       enddo
       pari=1
@@ -822,7 +762,7 @@ contains
             gamma(1,ires,ier)=res(jj+3)
             gamgam(ires,ier)=res(jj+4)
             gamf=res(jj+5)
-            gamf=gamf*(-1)**ires
+         gamf=gamf*(-1)**ires
             gamx=0
             if (lrx.gt.0) gamx=res(jj+2)-res(jj+3)-res(jj+4)-res(jj+5)
             if (gamx.lt.1.e-7_kr) gamx=0
@@ -885,8 +825,6 @@ contains
          do j=1,ngroupm(ier)
             lspin(i,j,ier)=0
             chspin(i,j,ier)=0
-            backgr(i,j,ier)=0
-            backgrdata(i,igroup,ier,:)=0
          enddo
       enddo
       pari=1
@@ -1048,16 +986,6 @@ contains
       !--nls is really the number of spin groups for mode=7
       ngroup=nls
 
-      !--check krm and ifg
-      ifg=l1h
-      krm=l2h
-      if (ifg.ne.0) then
-        call error('rdsammy','reduced resonance widths are not supported (IFG=1)',' ')
-      endif
-      if (krm.ne.3) then
-        call error('rdsammy','LRF=7 currently only supports Reich-Moore (KRM=3)',' ')
-      endif
-
       !--read the list of particle-pair descriptions
       !--and store the values in the proper allocated arrays
       call listio(nin,0,0,res(jnow),nb,nw)
@@ -1096,16 +1024,8 @@ contains
 
          !--read the spin group information
          call listio(nin,0,0,res(jnow),nb,nw)
-         jj=jnow+nw
-         do while (nb.ne.0)
-            call moreio(nin,0,0,res(jj),nb,nw)
-            jj=jj+nw
-            if (jj.gt.maxres) call error('rdsammy',&
-              'res storage exceeded',' ')
-         enddo
          sspin(igroup,ier)=c1h
          parity(igroup,ier)=c2h
-         kbk=l1h
          ichp1=n2h
          ichan=ichp1-1
          ix=0
@@ -1125,8 +1045,6 @@ contains
                rdeff(i,igroup,ier)=res(jj+4)
                if (mt(ipp(i,igroup,ier),ier).eq.2) ascat=res(jj+4)
                rdtru(i,igroup,ier)=res(jj+5)
-               backgr(i,igroup,ier)=0
-               backgrdata(i,igroup,ier,:)=0
             endif
             jj=jj+6
          enddo
@@ -1140,7 +1058,7 @@ contains
             if (jj.gt.maxres) call error('rdsammy',&
               'res storage exceeded',' ')
          enddo
-         nresg(igroup,ier)=l2h
+         nresg(igroup,ier)=nint(res(jnow+3))
          if (nresg(igroup,ier).gt.0) then
             jj=jnow+6
             nx=6
@@ -1193,65 +1111,6 @@ contains
                   gamgam(kres,ier)=x
                endif
                jj=jj+nx
-            enddo
-         endif
-
-         !--read background rmatrix elements
-         if (kbk.gt.0) then
-            nrext=1
-            if (krm.ne.3) then
-               call error('rdsammy',&
-               'Background rmatrix elements in LRF=7 are only allowed for Reich-Moore (KRM=3)',' ')
-            endif
-            do l=1,kbk
-               call contio(nin,0,0,res(jnow),nb,nw)
-               lch=l1h
-               lbk=l2h
-               if (lbk.ne.0.and.lch.eq.1) then
-                  write(strng,'(''channel '',i3,'' in spin group '',i3,&
-                               &'' is the eliminated capture channel'')') lch,igroup
-                  call error('rdsammy',strng,&
-                             'Background rmatrix data is not allowed for this channel')
-               endif
-               if (lbk.ne.0.and.lch.ne.1) then
-                  backgr(lch-1,igroup,ier)=lbk
-               endif
-               if (lbk.eq.1) then
-                  !--store the tables
-                  jj=3
-                  backgrdata(lch-1,igroup,ier,1)=jj
-                  call tab1io(nin,0,0,backgrdata(lch-1,igroup,ier,jj),nb,nw)
-                  jj=jj+nw
-                  do while (nb.ne.0)
-                     call moreio(nin,0,0,backgrdata(lch-1,igroup,ier,jj),nb,nw)
-                     jj=jj+nw
-                  enddo
-                  backgrdata(lch-1,igroup,ier,2)=jj
-                  call tab1io(nin,0,0,backgrdata(lch-1,igroup,ier,jj),nb,nw)
-                  jj=jnow+nw
-                  do while (nb.ne.0)
-                     call moreio(nin,0,0,backgrdata(lch-1,igroup,ier,jj),nb,nw)
-                     jj=jj+nw
-                  enddo
-               else if (lbk.eq.2.or.lbk.eq.3) then
-                  call listio(nin,0,0,res(jnow),nb,nw)
-                  jj=jnow+nw
-                  do while (nb.ne.0)
-                     call moreio(nin,0,0,res(jj),nb,nw)
-                     jj=jj+nw
-                     if (jj.gt.maxres) call error('rdsammy',&
-                       'res storage exceeded',' ')
-                  enddo
-                  backgrdata(lch-1,igroup,ier,1)=c1h
-                  backgrdata(lch-1,igroup,ier,2)=c2h
-                  backgrdata(lch-1,igroup,ier,3)=res(jnow+6)
-                  backgrdata(lch-1,igroup,ier,4)=res(jnow+7)
-                  backgrdata(lch-1,igroup,ier,5)=res(jnow+8)
-                  if (lbk.eq.2) then
-                     backgrdata(lch-1,igroup,ier,6)=res(jnow+9)
-                     backgrdata(lch-1,igroup,ier,7)=res(jnow+10)
-                  endif
-               endif
             enddo
          endif
       enddo
@@ -1586,8 +1445,6 @@ contains
    allocate(nresg(ngroup,nerm))
    allocate(ipp(mchan,ngroup,nerm))
    allocate(lspin(mchan,ngroup,nerm))
-   allocate(backgr(mchan,ngroup,nerm))
-   allocate(backgrdata(mchan,ngroup,nerm,nback))
    allocate(chspin(mchan,ngroup,nerm))
    allocate(bound(mchan,ngroup,nerm))
    allocate(rdeff(mchan,ngroup,nerm))
@@ -1595,6 +1452,7 @@ contains
    allocate(eres(nres,nerm))
    allocate(gamgam(nres,nerm))
    allocate(gamma(mchan,nres,nerm))
+   allocate(parext(7,mchan,ngroup,nerm))
    allocate(nent(nres,nerm))
    allocate(next(nres,nerm))
    allocate(goj(nres,nerm))
@@ -2054,15 +1912,11 @@ contains
                iduu(knpar,ier)=0
                if (Want_Partial_U) then
                   uuuu(knpar,ier)=1
+               else
+                  if (kqq.ne.5) uuuu(knpar,ier)=parext(kqq,j,kgroup,ier)
+                  if (kqq.eq.5) uuuu(knpar,ier)=sqrt(parext(kqq,j,kgroup,ier))
                endif
             enddo
-            uuuu(1,ier)=backgrdata(j,kgroup,ier,1)
-            uuuu(2,ier)=backgrdata(j,kgroup,ier,2)
-            uuuu(3,ier)=backgrdata(j,kgroup,ier,3)
-            uuuu(4,ier)=backgrdata(j,kgroup,ier,4)
-            uuuu(5,ier)=sqrt(backgrdata(j,kgroup,ier,6))
-            uuuu(6,ier)=backgrdata(j,kgroup,ier,7)
-            uuuu(7,ier)=backgrdata(j,kgroup,ier,5)
          enddo
       enddo
    endif
@@ -3075,6 +2929,9 @@ contains
       enddo
    endif
 
+   krext=nrext
+   if (krext.eq.0) krext=1
+
    !--do loop over spin-parity groups
 
    kstart=0
@@ -3232,13 +3089,12 @@ contains
    !-------------------------------------------------------------------
    ! Generate the R-matrix and other arrays.
    !-------------------------------------------------------------------
-   use endf    ! provides terpa
    ! externals
    integer::n,lrmat,min,max,nent,nchan,ier
    ! internals
-   integer::nnntot,i,kl,k,l,ires,ii,ipx,iffy,kk,kx,kkx,j,ji,ip,ir,idis
+   integer::nnntot,i,kl,k,l,ires,ii,ipx,iffy,kk,kx,kkx,j,ji
    integer::lsp,jdopha
-   real(kr)::aloge,ex,rho,rhof,eta,hr,hi,p,dp,ds,esum,ediff,temp,enext
+   real(kr)::aloge,ex,rho,rhof,eta,hr,hi,p,dp,ds
    real(kr)::sinphx,cosphx,dphix
    real(kr)::hrx,hix,px,dpx,dsx
    real(kr),parameter::zero=0
@@ -3258,38 +3114,16 @@ contains
    !--initialize R-matrix
    kl=0
    do k=1,nchan
+      if (nrext.ne.0) aloge=log((parext(2,k,n,ier)-su)/(su-parext(1,k,n,ier)))
       do l=1,k
          kl=kl+1
          rmat(1,kl,ier)=0
          rmat(2,kl,ier)=0
-         if (l.eq.k) then
-            ! add background rmatrix elements if defined for the channel
-            if (backgr(k,n,ier).gt.0) then
-               if (backgr(k,n,ier).eq.1) then      ! arbitrary tabulated complex function
-                  ip=2
-                  ir=1
-                  call terpa(rmat(1,kl,ier),su,enext,idis,&
-                             backgrdata(k,n,ier,3),ip,ir)
-                  ip=2
-                  ir=1
-                  call terpa(rmat(2,kl,ier),su,enext,idis,&
-                             backgrdata(k,n,ier,int(backgrdata(k,n,ier,2))),ip,ir)
-               else if (backgr(k,n,ier).eq.2) then ! Sammy parametrisation
-                  rmat(1,kl,ier)=backgrdata(k,n,ier,3)&
-                                -backgrdata(k,n,ier,7)*(backgrdata(k,n,ier,2)-backgrdata(k,n,ier,1))&
-                                +(backgrdata(k,n,ier,4)+backgrdata(k,n,ier,5)*su)*su&
-                                -(backgrdata(k,n,ier,6)+backgrdata(k,n,ier,7)*su)&
-                                *log((backgrdata(k,n,ier,2)-su)/(su-backgrdata(k,n,ier,1)))
-               else if (backgr(k,n,ier).eq.3) then ! Frohner parametrisation
-                   esum=backgrdata(k,n,ier,1)+backgrdata(k,n,ier,2)
-                   ediff=backgrdata(k,n,ier,2)-backgrdata(k,n,ier,1)
-                   rmat(1,kl,ier)=backgrdata(k,n,ier,3)&
-                                 +2.*backgrdata(k,n,ier,4)&
-                                 *atanh((2.*su-esum)/ediff)
-                   rmat(2,kl,ier)=backgrdata(k,n,ier,5)/ediff&
-                                 /(1.-((2.*su-esum)/ediff)**2)
-               endif
-            endif
+         if (l.eq.k.and.nrext.ne.0) then
+            rmat(1,kl,ier)=parext(3,k,n,ier)+parext(4,k,n,ier)*su&
+             -parext(5,k,n,ier)*aloge+parext(7,k,n,ier)*su**2&
+             -parext(6,k,n,ier)*(parext(2,k,n,ier)-parext(1,k,n,ier))&
+             -parext(6,k,n,ier)*aloge*su
          endif
       enddo
    enddo
@@ -3356,7 +3190,7 @@ contains
 
          else
 
-            !--and here it is
+            !)--and here it is
             lsp=lspin(i,n,ier)
             ex=sqrt(su-echan(i,n,ier))
             rho=zkte(i,n,ier)*ex
@@ -6851,7 +6685,6 @@ contains
 
    subroutine derext(n,nchan,jstart,nnnn,ier)
    !-------------------------------------------------------------------
-   use util ! provides error
    ! externals
    integer::n,nchan,jstart,nnnn,ier
    ! internals
@@ -6861,12 +6694,6 @@ contains
    !--angle-integrated
    ij=0
    do i=1,nchan
-
-      !--only for the Sammy background option
-      if (backgr(i,nnnn,ier).ne.2) then
-         call error('derext','Partial derivatives are only coded for the Sammy formalism','')
-      endif
-
       ij=ij+I
       !  note that tr = 1/2 times partial (sigma) wrt (re R),
       !  ergo need to multiply by 2 here
@@ -6874,17 +6701,17 @@ contains
       jstart=jstart+1
       do m=1,npp
          if (m.le.2) then
-            deriv(m,jstart,ier)=-tr(m,ij,ier)*a*(backgrdata(i,nnnn,ier,6)+&
-              backgrdata(i,nnnn,ier,7)*backgrdata(i,nnnn,ier,1))/&
-              (su-backgrdata(i,nnnn,ier,1))
+            deriv(m,jstart,ier)=-tr(m,ij,ier)*a*(parext(5,i,nnnn,ier)+&
+              parext(6,i,nnnn,ier)*parext(1,i,nnnn,ier))/&
+              (su-parext(1,i,nnnn,ier))
          endif
       enddo
       jstart=jstart+1
       do m=1,npp
          if (m.le.2) then
-            deriv(m,jstart,ier)=-tr(m,ij,ier)*a*(backgrdata(i,nnnn,ier,6)+&
-              backgrdata(I,nnnn,ier,7)*backgrdata(i,nnnn,ier,2))/&
-             (backgrdata(i,nnnn,ier,2)-su)
+            deriv(m,jstart,ier)=-tr(m,ij,ier)*a*(parext(5,i,nnnn,ier)+&
+              parext(6,I,nnnn,ier)*parext(2,i,nnnn,ier))/&
+             (parext(2,i,nnnn,ier)-su)
          endif
       enddo
       jstart=jstart+1
@@ -6902,18 +6729,18 @@ contains
       jstart=jstart+1
       do m=1,npp
          if (m.le.2) then
-            deriv(m,jstart,ier)=-2*tr(m,ij,ier)*a*sqrt(backgrdata(i,nnnn,ier,6))*&
-              log((backgrdata(i,nnnn,ier,2)-su)/(su-backgrdata(i,nnnn,ier,1)))
+            deriv(m,jstart,ier)=-2*tr(m,ij,ier)*a*sqrt(parext(5,i,nnnn,ier))*&
+              log((parext(2,i,nnnn,ier)-su)/(su-parext(1,i,nnnn,ier)))
               !   Remember that the u-parameter is the
-              !   square root of backgrdata(6)
+              !   square root of parext(5)
          endif
       enddo
       jstart=jstart+1
       do m=1,npp
          if (m.le.2) then
             deriv(m,jstart,ier)=-tr(m,ij,ier)*a*&
-              ((backgrdata(i,nnnn,ier,2)-backgrdata(i,nnnn,ier,1))+&
-              su*log((backgrdata(i,nnnn,ier,2)-su)/(su-backgrdata(i,nnnn,ier,1))))
+              ((parext(2,i,nnnn,ier)-parext(1,i,nnnn,ier))+&
+              su*log((parext(2,i,nnnn,ier)-su)/(su-parext(1,i,nnnn,ier))))
          endif
       enddo
       jstart=jstart+1
@@ -7040,130 +6867,130 @@ contains
    !-------------------------------------------------------------------
 
    ! channel array
-   if (allocated(nchan)) deallocate(nchan)
+   deallocate(nchan)
 
    ! angle array
    if (Want_Angular_Dist) then
-      if (allocated(xlmn)) deallocate(xlmn)
-      if (allocated(kxlmn)) deallocate(kxlmn)
+      deallocate(xlmn)
+      deallocate(kxlmn)
    endif
 
    ! allo2 arrays
    if (Want_Partial_Derivs) then
-      if (allocated(br)) deallocate(br)
-      if (allocated(bi)) deallocate(bi)
-      if (allocated(pr)) deallocate(pr)
-      if (allocated(pii)) deallocate(pii)
+      deallocate(br)
+      deallocate(bi)
+      deallocate(pr)
+      deallocate(pii)
    endif
 
-   if (allocated(crss)) deallocate(crss)
-   if (allocated(sigmas)) deallocate(sigmas)
+   deallocate(crss)
+   deallocate(sigmas)
 
    if (Want_Partial_Derivs) then
-      if (allocated(deriv)) deallocate(deriv)
-      if (allocated(dsigma)) deallocate(dsigma)
+      deallocate(deriv)
+      deallocate(dsigma)
    endif
 
    if (Want_Angular_Dist) then
-      if (allocated(crssx)) deallocate(crssx)
-      if (allocated(Coef_Leg)) deallocate(Coef_Leg)
+      deallocate(crssx)
+      deallocate(Coef_Leg)
       if (Want_Partial_Derivs) then
-         if (allocated(derivx)) deallocate(derivx)
-         if (allocated(D_Coef_Leg)) deallocate(D_Coef_Leg)
+         deallocate(derivx)
+         deallocate(D_Coef_Leg)
       endif
    endif
 
-   if (allocated(alphar)) deallocate(alphar)
-   if (allocated(alphai)) deallocate(alphai)
-   if (allocated(difen)) deallocate(difen)
-   if (allocated(xden)) deallocate(xden)
+   deallocate(alphar)
+   deallocate(alphai)
+   deallocate(difen)
+   deallocate(xden)
 
    if (Want_Partial_Derivs) then
-      if (allocated(upr)) deallocate(upr)
-      if (allocated(upi)) deallocate(upi)
+      deallocate(upr)
+      deallocate(upi)
    endif
 
-   if (allocated(sinsqr)) deallocate(sinsqr)
-   if (allocated(sin2ph)) deallocate(sin2ph)
-   if (allocated(dphi)) deallocate(dphi)
-   if (allocated(dpdr)) deallocate(dpdr)
-   if (allocated(dsdr)) deallocate(dsdr)
-   if (allocated(cscs)) deallocate(cscs)
-   if (allocated(cosphi)) deallocate(cosphi)
-   if (allocated(sinphi)) deallocate(sinphi)
+   deallocate(sinsqr)
+   deallocate(sin2ph)
+   deallocate(dphi)
+   deallocate(dpdr)
+   deallocate(dsdr)
+   deallocate(cscs)
+   deallocate(cosphi)
+   deallocate(sinphi)
 
-   if (allocated(rootp)) deallocate(rootp)
-   if (allocated(elinvr)) deallocate(elinvr)
-   if (allocated(elinvi)) deallocate(elinvi)
-   if (allocated(psmall)) deallocate(psmall)
-   if (allocated(xxxxr)) deallocate(xxxxr)
-   if (allocated(xxxxi)) deallocate(xxxxi)
+   deallocate(rootp)
+   deallocate(elinvr)
+   deallocate(elinvi)
+   deallocate(psmall)
+   deallocate(xxxxr)
+   deallocate(xxxxi)
 
-   if (allocated(xqr)) deallocate(xqr)
-   if (allocated(xqi)) deallocate(xqi)
+   deallocate(xqr)
+   deallocate(xqi)
 
-   if (allocated(qr)) deallocate(qr)
-   if (allocated(qi)) deallocate(qi)
+   deallocate(qr)
+   deallocate(qi)
 
    if (Want_Partial_Derivs) then
-      if (allocated(tr)) deallocate(tr)
-      if (allocated(ti)) deallocate(ti)
-      if (allocated(tx)) deallocate(tx)
+      deallocate(tr)
+      deallocate(ti)
+      deallocate(tx)
    endif
 
-   if (allocated(ddddd)) deallocate(ddddd)
+   deallocate(ddddd)
 
-   if (allocated(yinv)) deallocate(yinv)
+   deallocate(yinv)
 
-   if (allocated(rmat)) deallocate(rmat)
-   if (allocated(ymat)) deallocate(ymat)
+   deallocate(rmat)
+   deallocate(ymat)
 
-   if (allocated(par)) deallocate(par)
+   deallocate(par)
 
  ! allo1 arrays
 
-   if (allocated(ema)) deallocate(ema)
-   if (allocated(emb)) deallocate(emb)
-   if (allocated(kza)) deallocate(kza)
-   if (allocated(kzb)) deallocate(kzb)
-   if (allocated(spina)) deallocate(spina)
-   if (allocated(spinb)) deallocate(spinb)
-   if (allocated(qqq)) deallocate(qqq)
-   if (allocated(ishift)) deallocate(ishift)
-   if (allocated(lpent)) deallocate(lpent)
-   if (allocated(mt)) deallocate(mt)
-   if (allocated(pa)) deallocate(pa)
-   if (allocated(pb)) deallocate(pb)
-   if (allocated(sspin)) deallocate(sspin)
-   if (allocated(parity)) deallocate(parity)
-   if (allocated(nresg)) deallocate(nresg)
-   if (allocated(ipp)) deallocate(ipp)
-   if (allocated(lspin)) deallocate(lspin)
-   if (allocated(backgr)) deallocate(backgr)
-   if (allocated(backgrdata)) deallocate(backgrdata)
-   if (allocated(chspin)) deallocate(chspin)
-   if (allocated(bound)) deallocate(bound)
-   if (allocated(rdeff)) deallocate(rdeff)
-   if (allocated(rdtru)) deallocate(rdtru)
-   if (allocated(eres)) deallocate(eres)
-   if (allocated(gamgam)) deallocate(gamgam)
-   if (allocated(gamma)) deallocate(gamma)
-   if (allocated(nent)) deallocate(nent)
-   if (allocated(next)) deallocate(next)
-   if (allocated(goj)) deallocate(goj)
-   if (allocated(zke)) deallocate(zke)
-   if (allocated(zkfe)) deallocate(zkfe)
-   if (allocated(zkte)) deallocate(zkte)
-   if (allocated(zeta)) deallocate(zeta)
-   if (allocated(echan)) deallocate(echan)
-   if (allocated(betapr)) deallocate(betapr)
-   if (allocated(gbetpr)) deallocate(gbetpr)
-   if (allocated(beta)) deallocate(beta)
-   if (allocated(uuuu)) deallocate(uuuu)
-   if (allocated(duuu)) deallocate(duuu)
-   if (allocated(iduu)) deallocate(iduu)
+   deallocate(ema)
+   deallocate(emb)
+   deallocate(kza)
+   deallocate(kzb)
+   deallocate(spina)
+   deallocate(spinb)
+   deallocate(qqq)
+   deallocate(ishift)
+   deallocate(lpent)
+   deallocate(mt)
+   deallocate(pa)
+   deallocate(pb)
+   deallocate(sspin)
+   deallocate(parity)
+   deallocate(nresg)
+   deallocate(ipp)
+   deallocate(lspin)
+   deallocate(chspin)
+   deallocate(bound)
+   deallocate(rdeff)
+   deallocate(rdtru)
+   deallocate(eres)
+   deallocate(gamgam)
+   deallocate(gamma)
+   deallocate(parext)
+   deallocate(nent)
+   deallocate(next)
+   deallocate(goj)
+   deallocate(zke)
+   deallocate(zkfe)
+   deallocate(zkte)
+   deallocate(zeta)
+   deallocate(echan)
+   deallocate(betapr)
+   deallocate(gbetpr)
+   deallocate(beta)
+   deallocate(uuuu)
+   deallocate(duuu)
+   deallocate(iduu)
 
    return
    end subroutine desammy
 
 end module samm
+

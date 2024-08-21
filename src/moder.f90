@@ -241,8 +241,6 @@ contains
       call file6(nin,nout,nscr,a)
    else if (mfh.eq.27) then
       call file3(nin,nout,nscr,a)
-   else if (mfh.eq.28) then
-      call file28(nin,nout,nscr,a)
    else if (mfh.eq.30) then
       call file1x(nin,nout,nscr,a)
    else if (mfh.eq.31) then
@@ -693,25 +691,18 @@ contains
                      call moreio(nin,nout,nscr,a,nb,nw)
                   enddo
                   if (kbk.gt.0) then
-                     do l=1,kbk
-                        call contio(nin,nout,nscr,a,nb,nw)
-                        lbk=l2h
-                        if (lbk.eq.1) then
-                           call tab1io(nin,nout,nscr,a,nb,nw)
-                           do while (nb.ne.0)
-                              call moreio(nin,nout,nscr,a,nb,nw)
-                           enddo
-                           call tab1io(nin,nout,nscr,a,nb,nw)
-                           do while (nb.ne.0)
-                              call moreio(nin,nout,nscr,a,nb,nw)
-                           enddo
-                        else if (lbk.eq.2.or.lbk.eq.3) then
-                           call listio(nin,nout,nscr,a,nb,nw)
-                           do while (nb.ne.0)
-                              call moreio(nin,nout,nscr,a,nb,nw)
-                           enddo
-                        endif
-                     enddo
+                     call listio(nin,nout,nscr,a,nb,nw)
+                     lbk=n1h
+                     if (lbk.eq.1) then
+                        call tab1io(nin,nout,nscr,a,nb,nw)
+                        do while (nb.ne.0)
+                           call moreio(nin,nout,nscr,a,nb,nw)
+                        enddo
+                        call tab1io(nin,nout,nscr,a,nb,nw)
+                        do while (nb.ne.0)
+                           call moreio(nin,nout,nscr,a,nb,nw)
+                        enddo
+                     endif
                   endif
                   if (kps.eq.1)then
                      call listio(nin,nout,nscr,a,nb,nw)
@@ -1040,8 +1031,8 @@ contains
    else if (mth.eq.2.and.iverf.ge.6) then
       lthr=l1h
 
-      !--coherent (lthr=1) or mixed (lthr=3)
-      if (lthr.eq.1.or.lthr.eq.3) then
+      !--coherent (lthr=1)
+      if (lthr.eq.1) then
          call tab1io(nin,nout,nscr,a,nb,nw)
          lt=l1h
          do while (nb.ne.0)
@@ -1054,32 +1045,19 @@ contains
             enddo
             lt=lt-1
          enddo
-      endif
 
-      !--incoherent (lthr=2) or mixed (lthr=3)
-      if (lthr.eq.2.or.lthr.eq.3) then
+      !--incoherent (lthr=2)
+      else if (lthr.eq.2) then
          call tab1io(nin,nout,nscr,a,nb,nw)
          do while (nb.ne.0)
             call moreio(nin,nout,nscr,a,nb,nw)
          enddo
-      endif
 
       !--illegal lthr for mt=2
-      if (lthr.lt.1.or.lthr.gt.3) then
+      else
          write(strng,'(''illegal value of lthr='',i4)') lthr
          call error('file7',strng,' ')
       endif
-
-   !--general information (mt=451)
-   else if (mth.eq.451) then
-
-      n=l1h
-      do i=1,n
-         call listio(nin,nout,nscr,a,nb,nw)
-         do while (nb.ne.0)
-            call moreio(nin,nout,nscr,a,nb,nw)
-         enddo
-      enddo
 
    !--illegal mt
    else
@@ -1325,28 +1303,6 @@ contains
    endif
    return
    end subroutine file15
-
-   subroutine file28(nin,nout,nscr,a)
-   !-------------------------------------------------------------------
-   ! Convert mode of File 28.
-   ! Atomic relaxation data.
-   !-------------------------------------------------------------------
-   use endf ! provides endf routines and variables
-   ! externals
-   integer::nin,nout,nscr
-   real(kr)::a(*)
-   ! internals
-   integer::nss,i,nb,nw
-
-   nss=n1h
-   do i=1,nss
-      call listio(nin,nout,nscr,a,nb,nw)
-      do while (nb.ne.0)
-         call moreio(nin,nout,nscr,a,nb,nw)
-      enddo
-   enddo
-   return
-   end subroutine file28
 
    subroutine file3x(nin,nout,nscr,a)
    !-------------------------------------------------------------------
@@ -1709,3 +1665,4 @@ contains
    end subroutine glstio
 
 end module modem
+
