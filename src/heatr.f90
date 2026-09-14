@@ -100,12 +100,14 @@ contains
    !                   since it is used to generate the displacement kerma
    !    idam_fnc flag for alternate treatment of damage partition function
    !             (default is 0 for built-in Robinson partition function)
-   !                 0 = Robinson partition function /
-   !                 1 = read-in function / 
+   !                 0 = Robinson partition functional fitting equation /
+   !                 0 = Akkerman partition functional fitting equation /   
+   !                 1 = read-in tabular damage partition function / 
    !                 2 = read-in efficiency factor and apply to Robinson partition function /
    !                 3 = read-in partition function and efficiency factor and use product /
    !                Note, icntrl(4) entry:
-   !                  icntrl(4) = 0 & icntrl(8) = 0   corresponds to idam_fnc = 0 - NJOY default
+   !                  icntrl(4) = 0 & icntrl(8) = 0   corresponds to idam_fnc = 0 - NJOY default, Robinson partition function
+   !                  icntrl(4) = 0 & icntrl(8) = 2   corresponds to idam_fnc = 0 - Akkerman damage partition function
    !                  icntrl(4) = 0 & icntrl(8) = 1   corresponds to idam_fnc = 1 - read-in damage partition function
    !                  icntrl(4) = 1 & icntrl(8) = 0   corresponds to idam_fnc = 2 - read-in efficiency function and apply on top of Robinson partition function
    !                  icntrl(4) = 1 & icntrl(8) = 1   corresponds to idam_fnc = 3 - read-in efficiency function and apply on top of read-in partition function
@@ -317,7 +319,7 @@ contains
    displace_th = break_new
 
    if ( idam_fnc .eq. 0) then 
-      if ( icntrl(8) .ne. 0 .or. icntrl(4) .ne. 0) then 
+      if ( (icntrl(8) .ne. 0 .and. icntrl(8) .ne. 2) .or. icntrl(4) .ne. 0) then 
          write(nsyso,'(&
            &'' ERROR: idam_fnc flag = 0 input conflict'', 3i5)') icntrl(4), icntrl(8), idam_fnc
          call error('heatr','idam_fnc in conflict with icntrl(4); icntrl(8)',' ')
@@ -390,7 +392,7 @@ contains
 !
 ! Damage partition function modifications
 !
-   if ( icntrl(8) .ne. 0 .and. icntrl(8) .ne. 1) then 
+   if ( (icntrl(8) .ne. 0 .and. icntrl(8) .ne. 2) .and. icntrl(8) .ne. 1) then 
          write(nsyso,'(&
         &'' ERROR: illegal icntrl(8) input flag'', 3i5)') icntrl(4), icntrl(8), idam_fnc
           write(nsyso,'(&
@@ -427,7 +429,7 @@ contains
         close(unit=34)
         write(nsyso,'(&
         &''                '')')
-   elseif (icntrl(8) .gt. 1) then 
+   elseif (icntrl(8) .gt. 2) then 
          write(nsyso,'(&
         &'' ERROR: illegal icntrl(8) input flag'', 3i5)') icntrl(4), icntrl(8), idam_fnc
       call error('heatr','icntrl(8) partition function option not implemented',' ')
@@ -454,7 +456,9 @@ contains
         &'' lattice atom atomic mass ............. '',g14.7&
         &)') al_new_temp
    endif
-   amu_over_nmass =  931.49410242 / 939.56542052
+!   amu_over_nmass =  931.49410242 / 939.56542052
+!   updated by CODTATA 2022
+   amu_over_nmass =  931.49410372 / 939.56542194
    if ( al_new_temp .lt. 0.0) then
 !      input nmass
         al_new_amu = abs(al_new_temp) * amu_over_nmass
@@ -2423,6 +2427,10 @@ contains
    ! Damage function using the Lindhard partition of
    ! energy between atomic and electronic motion.
    ! Call with e=0 for each reaction to precompute the constants.
+   !   default model is the Robinson functional fit to the L:indhard partition
+   !
+   ! Treatment added for Akkerman damage partition function - flagged by icntrl(8) = 2
+   !
    !-------------------------------------------------------------------
    use snl     ! provides SNL
    use mainio  ! provides nsysi,nsyso,nsyse
@@ -2448,6 +2456,10 @@ contains
    real(kr),parameter::c2=.0793e0_kr
    real(kr),parameter::c3=3.4008e0_kr
    real(kr),parameter::c4=.40244e0_kr
+   real(kr),parameter::akkerman_c3= 0.90565e0_kr
+   real(kr),parameter::akkerman_c4= 1.6812e0_kr
+   real(kr),parameter::akkerman_c5= 0.74422e0_kr
+   real(kr),parameter::robinson_c5= 1.00000e0_kr
    real(kr),parameter::zero=0
    save rel,fl
 
@@ -2524,12 +2536,21 @@ contains
       df=0
       dam = 0.0
    else
+!
+!    Robinson's or Akkerman's damage partition function
+!
       el=c1*zr*zl*sqrt(zr**twothd+zl**twothd)*(ar+al)/al
       rel=1/el
       denom=(zr**twothd+zl**twothd)**threeq*ar**onep5*sqrt(al)
       fl=c2*zr**twothd*sqrt(zl)*(ar+al)**onep5/denom
       ep=e*rel
-      dam=e/(1+fl*(c3*ep**sixth+c4*ep**threeq+ep))
+      if ( icntrl(8) .eq. 2) then 
+!        Akkerman partition function (2006 version fit using ZBL potentials for silicon)
+         dam=e/(1+fl*(akkerman_c3*ep**sixth+akkerman_c4*ep**threeq+akkerman_c5*ep))
+      else
+!        Robinson partition function
+         dam=e/(1+fl*(c3*ep**sixth+c4*ep**threeq+robinson_c5*ep))
+      endif
       df=dam
 !     
 !     Over-ride damage partition function with user-supplied damage partition function
@@ -2537,6 +2558,8 @@ contains
       if ( icntrl(8) .eq.1) then
 !         dam_tabular = 1.0
 !        damage partition function interpolation - log (fraction) with log (PKA energy)
+!            TBD - should be interpoalted based on damage energy
+!            TBD - so - change to interpoatle based on dam
          icode = 5
          dam_tabular = fitmd(e, ndamage, energy_dam, value_dam, icode)
          if ( imode(3) .lt. -1) then
@@ -2548,18 +2571,18 @@ contains
       endif
 !  
 !     Save the user-specified damage efficiency function on top of damage partition function
-!       set default to unity; compute efficiency if user-flag is set
+!      set default to unity; compute efficiency if user-flag is set
 !
       dam_effic = 1.0
       if ( icntrl(4) .eq. 1) then 
-!        damage efficiency interpolation - log (efficiency) with log (PKA energy)
+!        damage efficiency interpolation - log (efficiency) with log (damage energy, dam - not PKA energy, e)
          icode = 5
-         if ( e .lt. eff_eng(1)) then 
+         if ( dam .lt. eff_eng(1)) then 
             dam_effic = eff_value(1)
-         elseif ( e .gt. eff_eng(npoints_eff)) then 
+         elseif ( dam .gt. eff_eng(npoints_eff)) then 
             dam_effic = eff_value(npoints_eff)
          else
-            dam_effic = fitmd(e, npoints_eff, eff_eng, eff_value, icode)
+            dam_effic = fitmd(dam, npoints_eff, eff_eng, eff_value, icode)
          endif
          if ( imode(3) .lt. -1) then 
             write (nsyso, 3823) e, dam, dam_effic

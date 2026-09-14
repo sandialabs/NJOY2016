@@ -4215,7 +4215,7 @@ contains
       enddo
 
    !--sand-ii 620- and 640-group structures
-   else if (ign.eq.12.or.ign.eq.15 .or. ign.eq.24) then
+   else if (ign.eq.12 .or. ign.eq.15 .or. ign.eq.24) then
       ngn=620
       if (ign.eq.24) ngn=770
       if (ign.eq.15) ngn=640
@@ -4276,7 +4276,7 @@ contains
       lflag=1
 
    !--vitamin-e 174- and vitamin-j 175-group structures (ornl-5510)
-   else if (ign.eq.16.or.ign.eq.17) then
+   else if (ign.eq.16 .or. ign.eq.17) then
       if (ign.eq.16) ngn=174
       if (ign.eq.17) ngn=175
       ngp=ngn+1
@@ -4363,6 +4363,15 @@ contains
          egn(ig)=eg23(ig)
       enddo
 
+   !--UKAEA 1102-group structure
+   else if (ign.eq.32) then
+      ngn=1102
+      ngp=ngn+1
+      allocate(egn(ngp))
+      do ig=1,1103
+         egn(ig)=eg32(ig)
+      enddo
+
    !--illegal ign
    else
       call error('gengpn','illegal group structure.',' ')
@@ -4425,6 +4434,8 @@ contains
      &  '' neutron group structure......vit-j lwpc 175-group'')')
    if (ign.eq.24) write(nsyso,'(/&                                                     
    &  '' neutron group structure......SAND-IV 770-group'')')   
+   if (ign.eq.32) write(nsyso,'(/&                                                     
+   &  '' neutron group structure......UKAEA 1102-group'')')   
    do ig=1,ngn
       write(nsyso,'(1x,i5,2x,1p,e12.5,''  - '',e12.5)')&
         ig,egn(ig),egn(ig+1)
@@ -7299,6 +7310,7 @@ contains
    use mainio ! provides nsyso
    use endf   ! provides endf routines and variables
    use util   ! provides error,mess,skiprz
+   use snl     ! provides SNL
    ! externals
    integer::idisc,ng,nl,iglo,ng2,nq,matd,mfd,mtd,nin,nlg
    real(kr)::ed,enext,yld
@@ -7370,6 +7382,10 @@ contains
   100 continue
    ik=ik+1
    if (ik.gt.nk.and.mfd.eq.18) go to 199
+   if ( imode(3) .le. -3) then
+        write (nsyso, 6711) ik, nk, mfd
+ 6711   format (1x, 'getmf6 error debug: ', 2x, 3i10)
+   endif
    if (ik.gt.nk)&
      call error('getmf6','desired particle not found.',' ')
    l=iy

@@ -1,0 +1,37 @@
+Notes on sync_master version of Sandia's NJOY-2016
+
+1) The general cmake process for generating the makefile is not yet implemented - so the sandialabs makefile has been edited and 
+    moved here manually. 
+2) Since we did not do the cmake here, I also needed to create CMakefile subdirectory and populate it.
+3) njoy executable and libnjoy/sofiles are manually moved after make/compile tounder bin
+4) 	moved in test_new_compile.inp input to support testing
+5) 	copied TENDL-2025 library under sync_master/xsec to support test cases
+	copiwa IRDFF-II_release library under sync_master/xsec to support regression cases
+6) GROUPR neutron structure 32 failed - but this IAEA is in the latest NJOY. CHnages to 12 / SAND-II for testing
+7) 	needed to create the pka subdirectory
+8) 	moved ENDF inputs in input files over to sandialabs to avoid too much duplication of xsec files
+9) 	Added fixed pdf for NJOY documentation file
+10) TBD: Need to integrate SNL regressions inwith the standard NJOY test process
+11) TBD: Need to update NJOY with latest updates
+	a) integrate LANL updates that  do not conflict
+	b) identify updates that need work to resolve
+		c) PJG to update source with his latest changes
+			modules: errorr, groupr, heatr, main, plotr
+	d) PJG to look at conflicts and see if they can be resolves
+12) TBD: Confirm the recoil algorithm changes for (n,g) reaction differences
+13) TBD: Fix elastic recoil issue at high energy ewhen generating recoil spectra - probably a quadrature issue
+14) 	Add new Sandia regression tests to support ASTM calculations
+	Appears to be in the regression test already. 
+	Check status
+15) TBD: Look into standard regression tests 7, 13, 17, and 33 which have differences
+16): TBD: Look into regression test 24 which is excluded in the script
+17): TBD: Add light particle damage partition function option into NJOY
+18): TBD: Automate the regression diff file process
+	a) Get the legacy LANL NJOY outputs
+	b) Find ways to do diff in meaningful fashion
+		right now just diff special numerical outputs
+		that may be enough
+19): TBD: Why duplicate outputs in regression tests from SNL version, Test_Output, eferenceOutput, and *.out?
+20): TBD: What is status of LANL regression 48 - 62? We do not appear to process them. 
+21): TBD: Add more Sandia specific and ASTM support regression tests
+22): ??

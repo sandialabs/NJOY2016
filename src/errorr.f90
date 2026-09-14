@@ -126,7 +126,7 @@ module errorm
    integer::isammy=1 ! sammy processing on
 
    ! SNL-specific arrays
-   real:: covsnl(500,500), std(500), xsc(500), pstd(500), egnsnl(500)
+   real:: covsnl(700,700), std(700), xsc(700), pstd(700), egnsnl(700)
 
 contains
 
@@ -413,10 +413,10 @@ contains
    open(unit=78,file='lsl_interface.cov',status='unknown')
  !  write(77,'(/'' Start file-77 '')') 
  !  write(78,'(/'' Start file-78 '')') 
-   do jk = 1,500
+   do jk = 1,700
       std(jk) = 0.0
       xsc(jk) = 0.0
-      do jl = 1,500
+      do jl = 1,700
          covsnl(jk,jl) = 0.0
       end do
    end do
@@ -7593,7 +7593,7 @@ contains
                  ig,ig2lo,(scr(ibase+i),i=1,nc)
 
    !           SNL-specific relative covariance save
-               if ( ig.le.500.and.ig2lo+nc-1.le.500 ) then
+               if ( ig.le.700.and.ig2lo+nc-1.le.700 ) then
                  do i = 1,nc
                   covsnl(ig,ig2lo+i-1) = scr(ibase+i)
                   covsnl(ig2lo+i-1,ig) = covsnl(ig,ig2lo+i-1)
