@@ -1808,6 +1808,7 @@ contains
    !-------------------------------------------------------------------
    use util ! provides mess
    use endf ! provides endf routines and variables
+   use mainio  ! provides nsysi,nsyso,nsyse
    ! externals
    integer::nin,nplt,iplot,iauto,mfd,mtd,ltt
    integer::itype,jtype,igrid,nx,ny,nr,iwcol,maxaa,nwamax
@@ -1821,14 +1822,14 @@ contains
    integer::loc,k,imu,il,nmax
    real(kr)::xmin,xmax,xstp,base,dmu,emin,emax,estep,varlim
    real(kr)::en,amu,sum,pl,pn,g,h,var,factx1,facty1
-   real(kr)::ey3(200)
+   real(kr)::ey3(750)
    character(10)::name
    character(60)::strng
    character(1)::qu=''''
    character(14)::xlabld='<e>nergy (e<v)'
    character(6)::prob='<p>rob'
    character(8)::cosine='<c>osine'
-   integer,parameter::maxxy=200
+   integer,parameter::maxxy=370
    integer,parameter::maxx3=400
    real(kr),parameter::big=1.e8_kr
    real(kr),parameter::emev=1.e6_kr
@@ -1937,9 +1938,13 @@ contains
      call mess('ad3d',&
      'too much 3d angular distribution data',&
      'energy range truncated')
-   if (i.ge.maxxy) call mess('ad3d',&
-     'too many 3d angular distribution energies',&
-     'energy range truncated')
+   if (i.ge.maxxy) then
+        write (nsyso, 823) i, maxxy
+ 823    format (1x, 'ad3d dimension too small ', 2i8)
+        call mess('ad3d',&
+            'too many 3d angular distribution energies',&
+            'energy range truncated')
+   endif
    if (nx.eq.0) xl=cosine
    if (ny.eq.0) yl=xlabld
    if (nr.eq.0) rl=prob
@@ -2016,13 +2021,13 @@ contains
    integer::nb,nw,ne,i1,ne2,ne2m,locn,ie,idis,i2,nmax,ii1,ii2,i
    real(kr)::base,xmin,xmax,xstp,emin,emax,ymin,ymax,ystp
    real(kr)::e2,en,f2,ei,factx1,facty1,bigg,zmmm,zmin,zmax
-   real(kr)::ex3(200),ey3(200)
+   real(kr)::ex3(750),ey3(750)
    character(10)::name
    character(14)::xlabld='<e>nergy (e<v)'
    character(13)::sece='<s>ec. energy'
    character(10)::probp='<p>rob/e<v'
    character(1)::qu=''''
-   integer,parameter::maxxy=200
+   integer,parameter::maxxy=750
    integer,parameter::maxx3=400
    integer::nw7max=6000
    real(kr),parameter::eps=1.e-7_kr
@@ -2214,7 +2219,7 @@ contains
    real(kr)::xmin,xmax,xstp,emin,emax,ymin,ymax,ystp
    real(kr)::zmin,zmax,zmmm
    real(kr)::e2,eglo,eghi,f2,factx1,facty1
-   real(kr)::ex3(200),ey3(200)
+   real(kr)::ex3(750),ey3(750)
    character(10)::name
    character(1)::qu=''''
    character(13)::sece='<s>ec. energy'
@@ -2887,7 +2892,7 @@ contains
    ! internals
    integer::nmu,imu,ir,loc,ne,loca,nm,loc1,loc2,ip,ie,idis
    real(kr)::ei,emin,emax,de,e,u1,u2,f1,f2,en
-   real(kr)::egrid(200)
+   real(kr)::egrid(750)
    real(kr),parameter::etop=1.e10_kr
    real(kr),parameter::span=1.e6_kr
 

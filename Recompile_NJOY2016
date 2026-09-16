@@ -1,0 +1,31 @@
+#!/bin/bash
+#
+# NJOY-2016 recompile Unix shell
+# Note: Linux invocation
+#
+#echo " "
+# 
+export AGENCY=snl
+#
+echo " "
+echo " Usage: Invoke to use make make in an NJOY2016 source code recompile afater Fortran changes"
+echo " "
+if [[ -e njoy ]]; then
+  echo " Note: existing njoy executable file removed" 
+  rm njoy
+else
+  echo " Note: existing njoy executable file not found" 
+fi
+if [[ -e libnjoy.so ]]; then
+  echo " Note: existing libnjoy.so library file removed" 
+  rm libnjoy.so
+else
+  echo " Note: existing libnjoy.so library file not found" 
+fi
+echo " "
+make
+cp njoy ./bin/njoy
+cp libnjoy.so ./bin/libnjoy.so
+echo ""
+exit #
+   

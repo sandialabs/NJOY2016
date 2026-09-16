@@ -161,12 +161,15 @@ program njoy
 !                      1                                   particles > a (not implemented)
 !                      2                                   all particles (not implemented)
 !         icntrl(7) =  1    list reaction source for damage increments
-!         icntrl(8) =  0    use build-in Robinson function
+!         icntrl(8) =  0    use build-in Robinson functional fitting equation
 !                      1    use tabular function (to be read-in) with variable threshold energy
+!                               caution: this partition function is used for all outgoing charged particles - and 
+!                                        could bias result for ligh ion treatment
+!                      2    use build-in Akkerman functional fit [Akkerman 2006; modified g(E), same EL and KL as Robinson]
 !         icntrl(9)         Recoil particle-dependent damage partition function
 !                   =  0    full Robinson treatment   
 !                   =  i    ignore damage energy from charged particles
-!                             with atomic mass "i" less than the lattice atom
+!                             with atomic mass "i" less than the lattice atom  
 !         icntrl(10)=  0    report damage energy - default
 !                   =  1    report dpa - converted from damage energy
 !
@@ -344,6 +347,8 @@ program njoy
 
    if ( icntrl(8) .eq. 1) then
       write (nsyso,'(''icntrl(8) control logic flag set for user-input of damage parition function: '', i3)') icntrl(8)
+   elseif ( icntrl(8) .eq. 2 ) then 
+       write (nsyso,'(''icntrl(8) control logic flag set for Akkerman damage parition function: '', i3)') icntrl(8)
    elseif ( icntrl(8) .ne. 0 .and. icntrl(8) .ne. 1) then 
       write (nsyso,'(''icntrl(8) control logic flag (d) not implemented: '', 2i5)') jk, icntrl(jk)
    endif
